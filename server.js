@@ -273,6 +273,17 @@ function compareVersionParts(left, right) {
   return 0;
 }
 
+function parseJavaVersionOutput(output) {
+  const versionMatch = String(output || "").match(/version "([^"]+)"/);
+  if (!versionMatch) {
+    return null;
+  }
+  return {
+    version: versionMatch[1],
+    major: parseVersionParts(versionMatch[1])[0] || 0
+  };
+}
+
 function detectInstalledJavaRuntimes() {
   const runtimes = [];
 
@@ -299,16 +310,37 @@ function detectInstalledJavaRuntimes() {
     }
   }
 
+  // On non-macOS hosts, prefer an explicit JAVA_HOME before falling back to a plain system lookup.
+  const javaHome = process.env.JAVA_HOME;
+  if (javaHome) {
+    const javaBin = process.platform === "win32"
+      ? path.join(javaHome, "bin", "java.exe")
+      : path.join(javaHome, "bin", "java");
+    const result = spawnSync(javaBin, ["-version"], {
+      encoding: "utf8"
+    });
+    const parsed = parseJavaVersionOutput(`${result.stdout || ""}\n${result.stderr || ""}`);
+    if (parsed) {
+      runtimes.push({
+        version: parsed.version,
+        major: parsed.major,
+        vendor: "Unknown",
+        name: "JAVA_HOME",
+        home: javaHome,
+        javaBin
+      });
+    }
+  }
+
   if (!runtimes.length) {
     const result = spawnSync("java", ["-version"], {
       encoding: "utf8"
     });
-    const combined = `${result.stdout || ""}\n${result.stderr || ""}`;
-    const versionMatch = combined.match(/version "([^"]+)"/);
-    if (versionMatch) {
+    const parsed = parseJavaVersionOutput(`${result.stdout || ""}\n${result.stderr || ""}`);
+    if (parsed) {
       runtimes.push({
-        version: versionMatch[1],
-        major: parseVersionParts(versionMatch[1])[0] || 0,
+        version: parsed.version,
+        major: parsed.major,
         vendor: "Unknown",
         name: "System Java",
         home: "",
@@ -317,7 +349,10 @@ function detectInstalledJavaRuntimes() {
     }
   }
 
-  return runtimes.sort((left, right) => right.major - left.major || compareVersionParts(parseVersionParts(right.version), parseVersionParts(left.version)));
+  return uniqueBy(
+    runtimes.sort((left, right) => right.major - left.major || compareVersionParts(parseVersionParts(right.version), parseVersionParts(left.version))),
+    (runtime) => runtime.javaBin
+  );
 }
 
 const INSTALLED_JAVA_RUNTIMES = detectInstalledJavaRuntimes();
@@ -729,21 +764,36 @@ async function readServerProperties(server) {
   return properties;
 }
 
+async function readServerPropertiesRaw(server) {
+  try {
+    return await fs.readFile(path.join(server.path, "server.properties"), "utf8");
+  } catch {
+    return "";
+  }
+}
+
 async function updateServerProperties(serverId, updates) {
   const server = await readServerRecord(serverId);
-  const properties = await readServerProperties(server);
-  for (const key of MANAGED_SERVER_PROPERTY_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(updates, key)) {
-      properties[key] = normalizePropertyValue(key, updates[key]);
+  let properties = await readServerProperties(server);
+
+  // Support both guided field edits and a raw full-file editor without losing the simple settings flow.
+  if (typeof updates.rawContent === "string") {
+    await fs.writeFile(path.join(server.path, "server.properties"), updates.rawContent.endsWith("\n") ? updates.rawContent : `${updates.rawContent}\n`, "utf8");
+    properties = await readServerProperties(server);
+  } else {
+    for (const key of MANAGED_SERVER_PROPERTY_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(updates, key)) {
+        properties[key] = normalizePropertyValue(key, updates[key]);
+      }
     }
+
+    const nextContent = Object.entries(properties)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${key}=${value}`)
+      .join("\n");
+
+    await fs.writeFile(path.join(server.path, "server.properties"), `${nextContent}\n`, "utf8");
   }
-
-  const nextContent = Object.entries(properties)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}=${value}`)
-    .join("\n");
-
-  await fs.writeFile(path.join(server.path, "server.properties"), `${nextContent}\n`, "utf8");
 
   const recordPath = path.join(server.path, "resin-server.json");
   const record = await readServerRecord(serverId);
@@ -756,7 +806,11 @@ async function updateServerProperties(serverId, updates) {
     keys: Object.keys(updates)
   });
 
-  return readServerProperties(await readServerRecord(serverId));
+  const refreshedServer = await readServerRecord(serverId);
+  return {
+    properties: await readServerProperties(refreshedServer),
+    rawContent: await readServerPropertiesRaw(refreshedServer)
+  };
 }
 
 async function readKnownPlayers(server) {
@@ -1118,6 +1172,47 @@ async function createBackup(serverId, note = "") {
   };
 }
 
+async function restoreBackup(serverId, backupId) {
+  const runtime = SERVER_PROCESSES.get(serverId);
+  if (runtime?.state === "running") {
+    throw new Error("Stop the server before restoring a backup.");
+  }
+
+  const server = await readServerRecord(serverId);
+  const backupPath = path.join(BACKUPS_DIR, serverId, backupId);
+  const manifest = await readJsonFile(path.join(backupPath, "backup.json"), null);
+  if (!manifest) {
+    throw new Error("That backup could not be found.");
+  }
+
+  // Restore replaces the live server folder contents with the selected snapshot so the result is predictable.
+  const currentEntries = await fs.readdir(server.path, { withFileTypes: true });
+  for (const entry of currentEntries) {
+    const targetPath = path.join(server.path, entry.name);
+    await fs.rm(targetPath, { recursive: true, force: true });
+  }
+
+  const backupEntries = await fs.readdir(backupPath, { withFileTypes: true });
+  for (const entry of backupEntries) {
+    if (entry.name === "backup.json") {
+      continue;
+    }
+    const sourcePath = path.join(backupPath, entry.name);
+    const targetPath = path.join(server.path, entry.name);
+    if (entry.isDirectory()) {
+      await fs.cp(sourcePath, targetPath, { recursive: true });
+    } else if (entry.isFile()) {
+      await fs.copyFile(sourcePath, targetPath);
+    }
+  }
+
+  await appendActivity(serverId, "backup", `Restored backup ${backupId}.`, {
+    backupId
+  });
+
+  return readServerDetail(serverId);
+}
+
 async function evaluateServerReadiness(server) {
   const checks = [];
   const eulaPath = path.join(server.path, "eula.txt");
@@ -1289,12 +1384,13 @@ async function readServerDetail(serverId) {
   }
 
   const runtime = getRuntimeSummary(serverId);
-  const [players, mods, activity, backups, properties, readiness] = await Promise.all([
+  const [players, mods, activity, backups, properties, propertiesRaw, readiness] = await Promise.all([
     listPlayersForServer(serverId),
     listInstalledMods(serverId),
     readActivity(serverId).then((entries) => entries.sort((a, b) => new Date(b.at) - new Date(a.at))),
     listBackups(serverId),
     readServerProperties(server),
+    readServerPropertiesRaw(server),
     evaluateServerReadiness(server)
   ]);
   return {
@@ -1304,6 +1400,7 @@ async function readServerDetail(serverId) {
     runtime,
     readiness,
     properties,
+    propertiesRaw,
     activity,
     backups,
     players,
@@ -1868,14 +1965,18 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === "POST" && action === "settings") {
         const payload = await readBody(req);
-        return json(res, 200, {
-          properties: await updateServerProperties(serverId, payload.properties || {})
-        });
+        // Keep the response flat so the WebUI can refresh both guided fields and raw editor state in one pass.
+        return json(res, 200, await updateServerProperties(serverId, payload.properties || {}));
       }
 
       if (req.method === "POST" && action === "backups") {
         const payload = await readBody(req);
         return json(res, 200, await createBackup(serverId, payload.note));
+      }
+
+      if (req.method === "POST" && action === "restore-backup") {
+        const payload = await readBody(req);
+        return json(res, 200, await restoreBackup(serverId, payload.backupId));
       }
 
       if (req.method === "GET" && action === "mods") {

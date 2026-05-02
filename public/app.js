@@ -124,6 +124,8 @@ const settingsPanel = document.getElementById("settingsPanel");
 const settingsForm = document.getElementById("settingsForm");
 const settingsStatus = document.getElementById("settingsStatus");
 const saveSettingsButton = document.getElementById("saveSettingsButton");
+const settingsRawEditor = document.getElementById("settingsRawEditor");
+const saveRawSettingsButton = document.getElementById("saveRawSettingsButton");
 
 const backupsTitle = document.getElementById("backupsTitle");
 const backupsRuntime = document.getElementById("backupsRuntime");
@@ -197,7 +199,7 @@ function renderCreateInsights() {
   const version = minecraftVersion.value;
   const lines = [];
   if (!active) {
-    lines.push(["Choose a loader", "Presets can fill in a good starting point if you do not want to decide everything manually."]);
+    lines.push(["Choose a loader", "Pick the workflow you want Resin to prepare, then choose the matching Minecraft version and runtime path."]);
   } else {
     lines.push([`${active.name} workflow`, active.support]);
     lines.push(["Java target", version ? javaPolicy.textContent : "Pick a Minecraft version to see the target runtime policy."]);
@@ -617,6 +619,7 @@ function renderSettings(server, isRunning) {
       element.value = value;
     }
   }
+  settingsRawEditor.value = server.propertiesRaw || "";
   setSettingsStatus("Settings loaded from server.properties.");
 }
 
@@ -633,7 +636,10 @@ function renderBackups(server, isRunning) {
           <div class="server-meta">${formatTime(backup.createdAt)}${backup.note ? ` · ${backup.note}` : ""}</div>
           <div class="server-meta">${backup.path}</div>
         </div>
-        <span class="runtime-badge">${backup.sourceState}</span>
+        <div class="backup-actions">
+          <span class="runtime-badge">${backup.sourceState}</span>
+          <button type="button" class="secondary-button restore-backup-button" data-backup-id="${backup.id}" ${isRunning ? "disabled" : ""}>Restore</button>
+        </div>
       </div>
     `).join("")
     : `<div class="empty-state">No backups yet.</div>`;
@@ -1055,6 +1061,7 @@ async function saveSettings(event) {
     });
     if (state.selectedServer) {
       state.selectedServer.properties = payload.properties;
+      state.selectedServer.propertiesRaw = payload.rawContent;
     }
     await refreshSelectedServer({ silent: true });
     setSettingsStatus("Settings saved. Some changes may need a restart.", "status-success");
@@ -1063,6 +1070,35 @@ async function saveSettings(event) {
     setSettingsStatus(error.message, "status-error");
   } finally {
     saveSettingsButton.disabled = false;
+  }
+}
+
+async function saveRawSettings() {
+  if (!state.selectedServerId) {
+    return;
+  }
+  saveRawSettingsButton.disabled = true;
+  setSettingsStatus("Saving full server.properties file...");
+  try {
+    const payload = await api(`/api/servers/${state.selectedServerId}/settings`, {
+      method: "POST",
+      body: JSON.stringify({
+        properties: {
+          rawContent: settingsRawEditor.value
+        }
+      })
+    });
+    if (state.selectedServer) {
+      state.selectedServer.properties = payload.properties;
+      state.selectedServer.propertiesRaw = payload.rawContent;
+    }
+    await refreshSelectedServer({ silent: true });
+    setSettingsStatus("Full server.properties file saved.", "status-success");
+    setStatus(`Saved advanced settings for ${state.selectedServer?.name || "server"}.`, "status-success");
+  } catch (error) {
+    setSettingsStatus(error.message, "status-error");
+  } finally {
+    saveRawSettingsButton.disabled = false;
   }
 }
 
@@ -1089,6 +1125,24 @@ async function createBackup() {
     setStatus(error.message, "status-error");
   } finally {
     createBackupButton.disabled = false;
+  }
+}
+
+async function restoreBackup(backupId) {
+  if (!state.selectedServerId) {
+    return;
+  }
+  setStatus(`Restoring backup ${backupId}...`);
+  try {
+    state.selectedServer = await api(`/api/servers/${state.selectedServerId}/restore-backup`, {
+      method: "POST",
+      body: JSON.stringify({ backupId })
+    });
+    renderSelectedServer();
+    await refreshServers();
+    setStatus(`Restored backup ${backupId}.`, "status-success");
+  } catch (error) {
+    setStatus(error.message, "status-error");
   }
 }
 
@@ -1174,6 +1228,7 @@ sendCommandButton.addEventListener("click", () => sendConsoleCommand());
 modSearchButton.addEventListener("click", searchMods);
 settingsForm.addEventListener("submit", saveSettings);
 createBackupButton.addEventListener("click", createBackup);
+saveRawSettingsButton.addEventListener("click", saveRawSettings);
 
 inventorySearch.addEventListener("input", () => {
   state.inventorySearch = inventorySearch.value;
@@ -1264,6 +1319,14 @@ playersList.addEventListener("click", (event) => {
     return;
   }
   runPlayerAction(button.dataset.action, button.dataset.playerName, button.dataset.enabled === "true");
+});
+
+backupsList.addEventListener("click", (event) => {
+  const button = event.target.closest(".restore-backup-button");
+  if (!button) {
+    return;
+  }
+  restoreBackup(button.dataset.backupId);
 });
 
 window.addEventListener("beforeunload", stopDetailPolling);

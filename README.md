@@ -27,6 +27,7 @@ The current repository URL is:
 
 ### Runtime Handling
 - auto-detect installed Java runtimes on macOS
+- fall back to `JAVA_HOME` or the system `java` runtime on other operating systems
 - assign a Java runtime per server
 - prefer Java 25 for Minecraft `26.1+`
 - expose runtime reasoning directly in the UI
@@ -51,11 +52,13 @@ The current repository URL is:
 
 ### Settings
 - edit managed `server.properties` values from the UI
+- edit the full raw `server.properties` file from the UI when you need complete control
 - persist changes back to disk
 - reflect important mirrored settings like `motd`, `port`, and `online-mode`
 
 ### Backups
 - create timestamped snapshot backups of server folders
+- restore a server directly from a selected snapshot backup
 - store backups outside the live server directory
 - expose backup history in the UI
 
@@ -92,7 +95,7 @@ Resin/
 ## Requirements
 
 - Node.js 18+ recommended
-- macOS currently has the best Java auto-detection support in this implementation
+- macOS currently has the broadest Java auto-detection support in this implementation
 - internet access for:
   - loader metadata
   - artifact downloads
@@ -143,10 +146,10 @@ When you create a server, Resin:
 
 ## Current Limitations
 
-- backup restore is not implemented yet
-- Java runtime detection is primarily tailored to macOS
-- not every possible `server.properties` field is editable from the UI yet
-- the repository folder in this local workspace is not currently initialized as a git repository
+- non-macOS Java detection currently relies on `JAVA_HOME` or the first `java` available on `PATH` instead of enumerating every installed JDK
+- backup restore requires the server to be stopped and currently replaces the whole server folder with the selected snapshot
+- `Forge`, `NeoForge`, and `Quilt` still depend on upstream installer-style workflows, so future vendor-side changes can require follow-up adjustments in Resin
+- mod downloads currently focus on Modrinth compatibility and batch install flow, but do not yet resolve complex dependency chains automatically
 
 ## Development Notes
 

@@ -517,6 +517,18 @@
                     <p id="settingsStatus" class="status-text">Settings load from the selected server.</p>
                   </div>
                 </form>
+
+                <div class="form-section">
+                  <div class="form-section-title">Advanced</div>
+                  <label class="field">
+                    <span>Full `server.properties` editor</span>
+                    <textarea id="settingsRawEditor" rows="14" placeholder="server.properties will appear here"></textarea>
+                  </label>
+                  <div class="action-row">
+                    <button id="saveRawSettingsButton" type="button" class="secondary-button">Save full file</button>
+                    <p class="status-text">Use this when you want to edit any property, not only the guided fields.</p>
+                  </div>
+                </div>
               </section>
 
               <aside class="side-rail">

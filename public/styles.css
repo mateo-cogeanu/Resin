@@ -527,7 +527,8 @@ button {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   min-height: 3rem;
   border-radius: 0.9rem;
@@ -543,10 +544,18 @@ input::placeholder {
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   outline: none;
   border-color: rgba(42, 168, 255, 0.48);
   box-shadow: 0 0 0 3px rgba(42, 168, 255, 0.12);
+}
+
+textarea {
+  min-height: 18rem;
+  resize: vertical;
+  font-family: "IBM Plex Mono", "IBM Plex Sans", monospace;
+  line-height: 1.45;
 }
 
 input:disabled,
@@ -869,7 +878,8 @@ button[type="submit"]:hover,
 .mods-selection-bar,
 .mods-selection-actions,
 .mod-result-identity,
-.mod-result-copy {
+.mod-result-copy,
+.backup-actions {
   display: flex;
   gap: 0.85rem;
 }
@@ -890,6 +900,12 @@ button[type="submit"]:hover,
 
 .mods-selection-actions {
   flex-wrap: wrap;
+}
+
+.backup-actions {
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .mod-result-top-rich {
