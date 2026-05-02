@@ -1,0 +1,12 @@
+.DS_Store
+node_modules/
+
+# Local runtime state
+servers/
+backups/
+
+# Local installer and runtime logs
+*.log
+
+# Local editor or OS clutter
+.vscode/

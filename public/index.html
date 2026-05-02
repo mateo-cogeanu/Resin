@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="background-glow background-glow-a"></div>
+    <div class="background-glow background-glow-b"></div>
+    <main class="app-shell">
+      <aside class="app-sidebar">
+        <div class="sidebar-brand">
+          <div class="sidebar-logo">R</div>
+          <div>
+            <div class="sidebar-product">Resin</div>
+            <div class="sidebar-caption">Minecraft Control Panel</div>
+          </div>
+        </div>
+
+        <div class="sidebar-group">
+          <div class="sidebar-group-label">Workspace</div>
+          <button id="menuCreate" type="button" class="sidebar-link active">Create Server</button>
+          <button id="menuInventory" type="button" class="sidebar-link">Inventory</button>
+        </div>
+
+        <div class="sidebar-group">
+          <div class="sidebar-group-label">Server Management</div>
+          <button id="menuOverview" type="button" class="sidebar-link">Overview</button>
+          <button id="menuManage" type="button" class="sidebar-link">Console</button>
+          <button id="menuPlayers" type="button" class="sidebar-link">Players</button>
+          <button id="menuSettings" type="button" class="sidebar-link">Settings</button>
+          <button id="menuBackups" type="button" class="sidebar-link">Backups</button>
+          <button id="menuActivity" type="button" class="sidebar-link">Activity</button>
+          <button id="menuMods" type="button" class="sidebar-link">Mods</button>
+        </div>
+
+        <div class="sidebar-group sidebar-footer">
+          <div class="sidebar-group-label">Runtime</div>
+          <div class="sidebar-note">Auto Java selection enabled</div>
+          <div class="sidebar-note">Minecraft 26.1+ targets Java 25</div>
+          <div id="sidebarRuntimeStats" class="sidebar-runtime-stats">
+            <div class="sidebar-stat">
+              <span>Servers</span>
+              <strong id="sidebarServerCount">0</strong>
+            </div>
+            <div class="sidebar-stat">
+              <span>Running</span>
+              <strong id="sidebarRunningCount">0</strong>
+            </div>
+            <div class="sidebar-stat">
+              <span>Modded</span>
+              <strong id="sidebarModdedCount">0</strong>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="app-stage">
+        <header class="topbar">
+          <div class="topbar-server-pill">
+            <span class="topbar-server-label">Active Server</span>
+            <strong id="activeServerDisplay">No server selected</strong>
+            <span id="activeServerMeta" class="topbar-server-meta">Select one from Inventory to unlock management screens.</span>
+          </div>
+          <div class="topbar-status-row">
+            <span id="topbarRuntimeChip" class="topbar-chip">No runtime</span>
+            <span id="topbarAddressChip" class="topbar-chip">No address</span>
+            <span id="topbarHealthChip" class="topbar-chip">Waiting</span>
+          </div>
+        </header>
+
+        <section class="content-panels">
+          <article id="panelCreate" class="content-panel active">
+            <div class="workspace-title">
+              <div>
+                <p class="eyebrow">Provision</p>
+                <h1>Create Server</h1>
+              </div>
+              <div id="loaderChip" class="status-pill">Choose a loader</div>
+            </div>
+
+            <div class="workspace-grid workspace-grid-create">
+              <section class="panel-card">
+                <div class="panel-card-head">
+                  <h2>Server Configuration</h2>
+                  <p>Choose a loader, version, runtime settings, and let Resin pin the Java runtime automatically.</p>
+                </div>
+
+                <form id="createForm" class="create-form">
+                  <div class="form-section">
+                    <div class="form-section-title">Loader</div>
+                    <div class="loader-grid" id="loaderGrid"></div>
+                  </div>
+
+                  <div class="form-section">
+                    <div class="form-section-title">Basics</div>
+                    <div class="field-grid field-grid-basics">
+                      <label class="field">
+                        <span>Server name</span>
+                        <input id="name" name="name" type="text" placeholder="season-seven-survival" required />
+                      </label>
+                      <label class="field">
+                        <span>MOTD</span>
+                        <input id="motd" name="motd" type="text" placeholder="Private modpack world" />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="form-section">
+                    <div class="form-section-title">Version</div>
+                    <div class="field-grid">
+                      <label class="field">
+                        <span>Minecraft version</span>
+                        <select id="minecraftVersion" name="minecraftVersion" disabled></select>
+                      </label>
+                      <label class="field" id="variantField" hidden>
+                        <span id="variantLabel">Build</span>
+                        <select id="variantSelect" disabled></select>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="form-section">
+                    <div class="form-section-title">Runtime</div>
+                    <div class="field-grid">
+                      <label class="field">
+                        <span>Memory</span>
+                        <div class="inline-input">
+                          <input id="memoryMb" name="memoryMb" type="number" min="1024" step="512" value="4096" />
+                          <em>MB</em>
+                        </div>
+                      </label>
+                      <label class="field">
+                        <span>Port</span>
+                        <input id="port" name="port" type="number" min="1024" value="25565" />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="form-section">
+                    <div class="form-section-title">Options</div>
+                    <div class="toggle-row">
+                      <label class="toggle">
+                        <input id="onlineMode" name="onlineMode" type="checkbox" checked />
+                        <span>Online mode</span>
+                      </label>
+                      <label class="toggle">
+                        <input id="acceptEula" name="acceptEula" type="checkbox" />
+                        <span>Accept Mojang EULA in generated folder</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="action-row">
+                    <button id="submitButton" type="submit" disabled>Create server</button>
+                    <p id="statusText" class="status-text">Select a loader to begin.</p>
+                  </div>
+                </form>
+              </section>
+
+              <aside class="side-rail">
+                <section class="panel-card compact-card">
+                  <div class="panel-card-head">
+                    <h2>Detected Java</h2>
+                    <p>Resin chooses a runtime automatically per server.</p>
+                  </div>
+                  <div id="javaRuntimeList" class="runtime-list"></div>
+                </section>
+
+                <section class="panel-card compact-card">
+                  <div class="panel-card-head">
+                    <h2>Runtime Policy</h2>
+                    <p>Based on selected Minecraft version.</p>
+                  </div>
+                  <div id="javaPolicy" class="info-box">Resin will choose a Java runtime automatically for the selected Minecraft version.</div>
+                </section>
+
+                <section class="panel-card compact-card">
+                  <div class="panel-card-head">
+                    <h2>Provision Notes</h2>
+                    <p>Fast answers before you create the folder.</p>
+                  </div>
+                  <div id="createInsightList" class="stack-list"></div>
+                </section>
+              </aside>
+            </div>
+          </article>
+
+          <article id="panelInventory" class="content-panel">
+            <div class="workspace-title">
+              <div>
+                <p class="eyebrow">Inventory</p>
+                <h1>Server Inventory</h1>
+              </div>
+              <div class="status-pill">Select a server to open it</div>
+            </div>
+
+            <section class="panel-card inventory-panel">
+              <div class="panel-card-head">
+                <h2>Available Servers</h2>
+                <p>Click any server card to jump into console and mods management.</p>
+              </div>
+              <div class="inventory-toolbar">
+                <input id="inventorySearch" type="text" placeholder="Search by name, loader, version, or Java" />
+                <div class="inventory-filter-row">
+                  <button type="button" class="secondary-button inventory-filter-button active" data-filter="all">All</button>
+                  <button type="button" class="secondary-button inventory-filter-button" data-filter="running">Running</button>
+                  <button type="button" class="secondary-button inventory-filter-button" data-filter="ready">Ready</button>
+                  <button type="button" class="secondary-button inventory-filter-button" data-filter="modded">Modded</button>
+                </div>
+              </div>
+              <div id="inventorySummary" class="inventory-summary"></div>
+              <div id="serverList" class="server-list"></div>
+            </section>
+          </article>
+
+          <article id="panelOverview" class="content-panel">
+            <div class="workspace-title">
+              <div>
+                <p class="eyebrow">Overview</p>
+                <h1 id="overviewTitle">Select a server</h1>
+              </div>
+              <div id="overviewRuntime" class="status-pill">Idle</div>
+            </div>
+
+            <div id="overviewEmpty" class="empty-state">Choose a server to see its readiness, activity, players, backups, and runtime summary.</div>
+
+            <div id="overviewPanel" class="workspace-grid workspace-grid-overview" hidden>
+              <section class="panel-card">
+                <div class="panel-card-head">
+                  <h2>Server Status</h2>
+                  <p id="overviewSummary">Resin keeps the main server state in one place so you can tell whether it is actually ready to run.</p>
+                </div>
+
+                <div class="hero-actions" id="overviewQuickActions">
+                  <button id="overviewStartButton" type="button" class="action-button action-button-green">Start</button>
+                  <button id="overviewStopButton" type="button" class="action-button action-button-red">Stop</button>
+                  <button id="overviewConsoleButton" type="button" class="secondary-button">Open Console</button>
+                  <button id="overviewPlayersButton" type="button" class="secondary-button">Open Players</button>
+                  <button id="overviewSettingsButton" type="button" class="secondary-button">Open Settings</button>
+                </div>
+
+                <div id="overviewStats" class="stat-grid"></div>
+
+                <div class="subsection">
+                  <div class="subsection-head">
+                    <h3>Readiness Checks</h3>
+                    <span id="readinessPill" class="runtime-badge">Waiting</span>
+                  </div>
+                  <div id="readinessList" class="stack-list"></div>
+                </div>
+              </section>
+
+              <aside class="side-rail">
+                <section class="panel-card compact-card">
+                  <div class="panel-card-head panel-card-head-tight">
+                    <h2>Connection</h2>
+                    <p>Quick server details.</p>
+                  </div>
+                  <div id="overviewConnection" class="stack-list"></div>
+                </section>
+
+                <section class="panel-card compact-card">
+                  <div class="panel-card-head panel-card-head-tight">
+                    <h2>Live Players</h2>
+                    <p>Online right now.</p>
+                  </div>
+                  <div id="overviewPlayers" class="stack-list"></div>
+                </section>
+
+                <section class="panel-card compact-card">
+                  <div class="panel-card-head panel-card-head-tight">
+                    <h2>Recent Activity</h2>
+                    <p>Latest actions for this server.</p>
+                  </div>
+                  <div id="overviewActivity" class="stack-list"></div>
+                </section>
+              </aside>
+            </div>
+          </article>
+
+          <article id="panelManage" class="content-panel">
+            <div class="workspace-title">
+              <div>
+                <p class="eyebrow">Console</p>
+                <h1 id="managerTitle">Select a server</h1>
+              </div>
+              <div id="managerRuntime" class="status-pill">Idle</div>
+            </div>
+
+            <div id="managerEmpty" class="empty-state">Open Inventory and select a server to load its console, runtime info, and controls.</div>
+
+            <div id="managerPanel" class="workspace-grid workspace-grid-manage" hidden>
+              <section class="panel-card main-console-card">
+                <div class="console-topbar">
+                  <div class="runtime-badge-row">
+                    <span class="runtime-badge runtime-badge-green">Console Attached</span>
+                    <span class="runtime-badge" id="managerJavaBadge">Java</span>
+                  </div>
+                  <div class="server-action-row">
+                    <button id="startServerButton" type="button" class="action-button action-button-green">Start</button>
+                    <button id="stopServerButton" type="button" class="action-button action-button-red">Stop</button>
+                  </div>
+                </div>
+
+                <div class="panel-card-head panel-card-head-tight">
+                  <h2>Console</h2>
+                  <p id="managerJavaReason">Resin selected the best available Java runtime.</p>
+                </div>
+
+                <div class="console-toolbar">
+                  <div class="console-filter-row">
+                    <button type="button" class="secondary-button console-filter-button active" data-filter="all">All</button>
+                    <button type="button" class="secondary-button console-filter-button" data-filter="joins">Joins</button>
+                    <button type="button" class="secondary-button console-filter-button" data-filter="chat">Chat</button>
+                    <button type="button" class="secondary-button console-filter-button" data-filter="errors">Errors</button>
+                    <button type="button" class="secondary-button console-filter-button" data-filter="commands">Commands</button>
+                  </div>
+                  <label class="toggle toggle-compact">
+                    <input id="consoleAutoscroll" type="checkbox" checked />
+                    <span>Auto-scroll</span>
+                  </label>
+                </div>
+
+                <pre id="consoleOutput" class="console-output"></pre>
+
+                <label class="console-input-row">
+                  <input id="commandInput" type="text" placeholder="Type a command..." />
+                  <button id="sendCommandButton" type="button" class="icon-button">Send</button>
+                  <button id="refreshServerButton" type="button" class="icon-button icon-button-muted">Refresh</button>
+                </label>
+
+                <div class="quick-command-row">
+                  <button type="button" class="secondary-button quick-command-button" data-command="save-all">Save All</button>
+                  <button type="button" class="secondary-button quick-command-button" data-command="say Server maintenance in progress">Broadcast</button>
+                  <button type="button" class="secondary-button quick-command-button" data-command="whitelist list">Whitelist</button>
+                  <button type="button" class="secondary-button quick-command-button" data-command="list">List Players</button>
+                </div>
+              </section>
+
+              <aside class="side-rail">
+                <section class="panel-card compact-card">
+                  <div class="stat-card">
+                    <span>Loader</span>
+                    <strong id="managerLoader">-</strong>
+                  </div>
+                </section>
+                <section class="panel-card compact-card">
+                  <div class="stat-card">
+                    <span>Version</span>
+                    <strong id="managerVersion">-</strong>
+                  </div>
+                </section>
+                <section class="panel-card compact-card">
+                  <div class="stat-card">
+                    <span>Java</span>
+                    <strong id="managerJava">-</strong>
+                  </div>
+                </section>
+                <section class="panel-card compact-card">
+                  <div class="stat-card">
+                    <span>Path</span>
+                    <strong id="managerPath">-</strong>
+                  </div>
+                </section>
+              </aside>
+            </div>
+          </article>
+
+          <article id="panelPlayers" class="content-panel">
+            <div class="workspace-title">
+              <div>
+                <p class="eyebrow">Players</p>
+                <h1 id="playersTitle">Select a server</h1>
+              </div>
+              <div id="playersRuntime" class="status-pill">No server</div>
+            </div>
+
+            <div id="playersEmpty" class="empty-state">Choose a server to see players who have joined it and grant OP quickly.</div>
+
+            <div id="playersPanel" class="workspace-grid workspace-grid-players" hidden>
+              <section class="panel-card">
+                <div class="panel-card-head">
+                  <h2>Joined Players</h2>
+                  <p id="playersHint">Resin combines known player data from the server folder with live join activity and basic admin controls.</p>
+                </div>
+
+                <div class="inventory-toolbar">
+                  <input id="playersSearch" type="text" placeholder="Filter players by name or status" />
+                </div>
+                <div id="playersList" class="players-list"></div>
+              </section>
+
+              <aside class="side-rail">
+                <section class="panel-card compact-card">
+                  <div class="stat-card">
+                    <span>Server</span>
+                    <strong id="playersServerName">-</strong>
+                  </div>
+                </section>
+                <section class="panel-card compact-card">
+                  <div class="stat-card">
+                    <span>Loader</span>
+                    <strong id="playersLoader">-</strong>
+                  </div>
+                </section>
+                <section class="panel-card compact-card">
+                  <div class="stat-card">
+                    <span>Version</span>
+                    <strong id="playersVersion">-</strong>
+                  </div>
+                </section>
+                <section class="panel-card compact-card">
+                  <div class="stat-card">
+                    <span>OP Access</span>
+                    <strong>One click</strong>
+                  </div>
+                </section>
+              </aside>
+            </div>
+          </article>
+
+          <article id="panelSettings" class="content-panel">
+            <div class="workspace-title">
+              <div>
+                <p class="eyebrow">Settings</p>
+                <h1 id="settingsTitle">Select a server</h1>
+              </div>
+              <div id="settingsRuntime" class="status-pill">No server</div>
+            </div>
+
+            <div id="settingsEmpty" class="empty-state">Choose a server to edit the main `server.properties` values Resin manages directly.</div>
+
+            <div id="settingsPanel" class="workspace-grid workspace-grid-settings" hidden>
+              <section class="panel-card">
+                <div class="panel-card-head">
+                  <h2>Managed Server Properties</h2>
+                  <p>These are the settings Resin can edit safely without making you touch the file by hand.</p>
+                </div>
+
+                <form id="settingsForm" class="create-form">
+                  <div class="field-grid">
+                    <label class="field">
+                      <span>MOTD</span>
+                      <input id="settingMotd" type="text" />
+                    </label>
+                    <label class="field">
+                      <span>Level name</span>
+                      <input id="settingLevelName" type="text" />
+                    </label>
+                    <label class="field">
+                      <span>Port</span>
+                      <input id="settingPort" type="number" min="1024" />
+                    </label>
+                    <label class="field">
+                      <span>Max players</span>
+                      <input id="settingMaxPlayers" type="number" min="1" />
+                    </label>
+                    <label class="field">
+                      <span>Difficulty</span>
+                      <select id="settingDifficulty">
+                        <option value="peaceful">Peaceful</option>
+                        <option value="easy">Easy</option>
+                        <option value="normal">Normal</option>
+                        <option value="hard">Hard</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Gamemode</span>
+                      <select id="settingGamemode">
+                        <option value="survival">Survival</option>
+                        <option value="creative">Creative</option>
+                        <option value="adventure">Adventure</option>
+                        <option value="spectator">Spectator</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>View distance</span>
+                      <input id="settingViewDistance" type="number" min="2" />
+                    </label>
+                    <label class="field">
+                      <span>Simulation distance</span>
+                      <input id="settingSimulationDistance" type="number" min="2" />
+                    </label>
+                    <label class="field">
+                      <span>Spawn protection</span>
+                      <input id="settingSpawnProtection" type="number" min="0" />
+                    </label>
+                  </div>
+
+                  <div class="toggle-row">
+                    <label class="toggle">
+                      <input id="settingOnlineMode" type="checkbox" />
+                      <span>Online mode</span>
+                    </label>
+                    <label class="toggle">
+                      <input id="settingAllowFlight" type="checkbox" />
+                      <span>Allow flight</span>
+                    </label>
+                    <label class="toggle">
+                      <input id="settingPvp" type="checkbox" />
+                      <span>PVP enabled</span>
+                    </label>
+                    <label class="toggle">
+                      <input id="settingWhitelist" type="checkbox" />
+                      <span>Whitelist enforced</span>
+                    </label>
+                  </div>
+
+                  <div class="action-row">
+                    <button id="saveSettingsButton" type="submit">Save settings</button>
+                    <p id="settingsStatus" class="status-text">Settings load from the selected server.</p>
+                  </div>
+                </form>
+              </section>
+
+              <aside class="side-rail">
+                <section class="panel-card compact-card">
+                  <div class="panel-card-head panel-card-head-tight">
+                    <h2>Apply Notes</h2>
+                    <p>Some properties still need a restart to take full effect.</p>
+                  </div>
+                  <div class="info-box">Resin writes these values directly to `server.properties` and also updates mirrored metadata like MOTD, port, and online mode.</div>
+                </section>
+              </aside>
+            </div>
+          </article>
+
+          <article id="panelBackups" class="content-panel">
+            <div class="workspace-title">
+              <div>
+                <p class="eyebrow">Backups</p>
+                <h1 id="backupsTitle">Select a server</h1>
+              </div>
+              <div id="backupsRuntime" class="status-pill">No server</div>
+            </div>
+
+            <div id="backupsEmpty" class="empty-state">Choose a server to create and review backups.</div>
+
+            <div id="backupsPanel" class="workspace-grid workspace-grid-backups" hidden>
+              <section class="panel-card">
+                <div class="panel-card-head">
+                  <h2>Backup Snapshots</h2>
+                  <p>Resin copies the server folder into a timestamped backup directory.</p>
+                </div>
+
+                <div class="mods-search-row">
+                  <input id="backupNoteInput" type="text" placeholder="Optional backup note" />
+                  <button id="createBackupButton" type="button" class="action-button action-button-blue">Create backup</button>
+                </div>
+
+                <div id="backupsList" class="stack-list"></div>
+              </section>
+
+              <aside class="side-rail">
+                <section class="panel-card compact-card">
+                  <div class="panel-card-head panel-card-head-tight">
+                    <h2>Backup Notes</h2>
+                    <p>Backups are stored outside the server folder.</p>
+                  </div>
+                  <div class="info-box">If the server is running, Resin asks it to flush world data before copying files.</div>
+                </section>
+              </aside>
+            </div>
+          </article>
+
+          <article id="panelActivity" class="content-panel">
+            <div class="workspace-title">
+              <div>
+                <p class="eyebrow">Activity</p>
+                <h1 id="activityTitle">Select a server</h1>
+              </div>
+              <div id="activityRuntime" class="status-pill">No server</div>
+            </div>
+
+            <div id="activityEmpty" class="empty-state">Choose a server to review recent actions and admin events.</div>
+
+            <div id="activityPanel" class="workspace-grid workspace-grid-activity" hidden>
+              <section class="panel-card">
+                <div class="panel-card-head">
+                  <h2>Server Activity</h2>
+                  <p>Backups, settings saves, server actions, mod installs, and admin commands appear here.</p>
+                </div>
+                <div id="activityList" class="stack-list"></div>
+              </section>
+            </div>
+          </article>
+
+          <article id="panelMods" class="content-panel">
+            <div class="workspace-title">
+              <div>
+                <p class="eyebrow">Mods</p>
+                <h1 id="modsTitle">Select a server</h1>
+              </div>
+              <div id="modsRuntime" class="status-pill">No server</div>
+            </div>
+
+            <div id="modsEmpty" class="empty-state">Choose a mod-capable server first. Resin uses Modrinth for search and download.</div>
+
+            <div id="modsPanel" class="workspace-grid workspace-grid-mods" hidden>
+              <section class="panel-card">
+                <div class="panel-card-head">
+                  <h2>Find Mods</h2>
+                  <p id="modsSearchHint">Results are filtered to the selected server's loader and Minecraft version.</p>
+                </div>
+
+                <div class="mods-search-row">
+                  <input id="modSearchInput" type="text" placeholder="Search Modrinth mods for this loader and Minecraft version" />
+                  <button id="modSearchButton" type="button" class="action-button action-button-blue">Search</button>
+                </div>
+                <div class="quick-command-row">
+                  <button type="button" class="secondary-button mod-suggestion-button" data-query="performance">Performance</button>
+                  <button type="button" class="secondary-button mod-suggestion-button" data-query="optimization">Optimization</button>
+                  <button type="button" class="secondary-button mod-suggestion-button" data-query="admin">Admin</button>
+                  <button type="button" class="secondary-button mod-suggestion-button" data-query="worldgen">Worldgen</button>
+                </div>
+                <div class="mods-selection-bar">
+                  <div id="modsSelectionSummary" class="server-meta">No mods selected.</div>
+                  <div class="mods-selection-actions">
+                    <button id="modsSelectAllButton" type="button" class="secondary-button">Select all</button>
+                    <button id="modsClearSelectionButton" type="button" class="secondary-button">Clear</button>
+                    <button id="modsDownloadSelectedButton" type="button" class="action-button action-button-blue">Download selected</button>
+                  </div>
+                </div>
+
+                <div id="modResults" class="mod-results"></div>
+              </section>
+
+              <aside class="side-rail">
+                <section class="panel-card compact-card">
+                  <div class="stat-card">
+                    <span>Loader</span>
+                    <strong id="modsLoader">-</strong>
+                  </div>
+                </section>
+                <section class="panel-card compact-card">
+                  <div class="stat-card">
+                    <span>Version</span>
+                    <strong id="modsVersion">-</strong>
+                  </div>
+                </section>
+                <section class="panel-card compact-card">
+                  <div class="stat-card">
+                    <span>Folder</span>
+                    <strong id="modsPath">-</strong>
+                  </div>
+                </section>
+                <section class="panel-card compact-card">
+                  <div class="panel-card-head panel-card-head-tight">
+                    <h2>Installed Mods</h2>
+                    <p>Downloaded to this server's `mods` folder.</p>
+                  </div>
+                  <div id="installedModsList" class="installed-mods-list"></div>
+                </section>
+              </aside>
+            </div>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <template id="loaderTemplate">
+      <button type="button" class="loader-card">
+        <span class="loader-card-top">
+          <strong></strong>
+          <em></em>
+        </span>
+        <span class="loader-card-body"></span>
+        <span class="loader-card-foot"></span>
+      </button>
+    </template>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+  </html>
