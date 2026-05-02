@@ -22,3 +22,9 @@
 - ignored local server runtime folders in `servers/` so generated worlds, jars, and mutable server state do not become default tracked content
 - ignored local backup snapshots in `backups/` so backup copies remain local operational data rather than repository history
 - ignored `.DS_Store`, `node_modules/`, editor clutter, and loose `.log` files to keep the repository cleaner once git is initialized
+
+### GitHub Activation
+- initialized the local directory as a real git repository on branch `main`
+- configured the GitHub remote at `https://github.com/mateo-cogeanu/Resin.git`
+- created the first local repository commit for the current Resin project state
+- prepared the repository for normal commit-and-push workflow going forward under the standing instructions in `AGENTS.md`
