@@ -399,7 +399,6 @@ body {
 .workspace-grid-manage,
 .workspace-grid-mods,
 .workspace-grid-players,
-.workspace-grid-overview,
 .workspace-grid-settings,
 .workspace-grid-backups {
   grid-template-columns: minmax(0, 1fr) 18rem;
@@ -516,6 +515,33 @@ body {
   color: var(--muted);
   font-size: 0.84rem;
   margin-bottom: 1rem;
+}
+
+.overview-layout {
+  display: grid;
+  gap: 1.2rem;
+  align-items: start;
+}
+
+.overview-hero-card,
+.overview-readiness-card {
+  min-width: 0;
+}
+
+.overview-stat-grid {
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  margin-bottom: 0;
+}
+
+.overview-secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1.2rem;
+  align-items: start;
+}
+
+.overview-mini-card {
+  min-width: 0;
 }
 
 .loader-grid {
@@ -968,6 +994,23 @@ button[type="submit"]:hover,
   padding: 0.8rem 0.9rem;
 }
 
+.overview-mini-card .list-row,
+.overview-readiness-card .list-row {
+  align-items: start;
+}
+
+.overview-mini-card .list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.overview-mini-card .list-row strong,
+.overview-mini-card .list-row .server-meta,
+.overview-readiness-card .list-row strong,
+.overview-readiness-card .list-row .server-meta {
+  overflow-wrap: anywhere;
+}
+
 .subsection {
   display: grid;
   gap: 0.8rem;
@@ -1144,9 +1187,12 @@ button[type="submit"]:hover,
   .workspace-grid-manage,
   .workspace-grid-mods,
   .workspace-grid-players,
-  .workspace-grid-overview,
   .workspace-grid-settings,
   .workspace-grid-backups {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-secondary-grid {
     grid-template-columns: 1fr;
   }
 }

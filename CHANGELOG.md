@@ -20,6 +20,9 @@
 - reordered the workspace navigation so `Inventory` comes before `Create Server`
 - added a persisted theme picker with four built-in palettes: `Midnight`, `Harbor`, `Ember`, and `Grove`
 - adjusted shared UI styling so the theme system affects the main app shell, top bar, inventory actions, and danger controls consistently
+- reconstructed the `Overview` screen into a dedicated stacked dashboard layout instead of reusing the tighter side-rail shell from other screens
+- split overview content into a full-width status card, a dedicated readiness card, and a responsive secondary grid for connection, players, and activity
+- tightened overview card wrapping rules so long readiness messages and metadata stay inside their cards instead of pushing content off-screen
 
 ### Documentation
 - updated `README.md` to document stopped-server deletion from the WebUI
