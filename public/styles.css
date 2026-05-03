@@ -23,6 +23,63 @@
   --radius-md: 12px;
 }
 
+:root[data-theme="harbor"] {
+  --bg: #16212e;
+  --bg-2: #203041;
+  --bg-3: #294055;
+  --panel: #213447;
+  --panel-2: #294055;
+  --sidebar: #172939;
+  --sidebar-2: #122231;
+  --border: rgba(115, 210, 255, 0.16);
+  --text: #f4fbff;
+  --muted: #a9c7d7;
+  --blue: #63d3ff;
+  --blue-2: #2ba4ff;
+  --green: #37d59a;
+  --red: #ff7f7f;
+  --orange: #f6b35b;
+  --yellow: #ffe280;
+}
+
+:root[data-theme="ember"] {
+  --bg: #271922;
+  --bg-2: #34202d;
+  --bg-3: #452c3b;
+  --panel: #382534;
+  --panel-2: #472d40;
+  --sidebar: #2a1c2a;
+  --sidebar-2: #211521;
+  --border: rgba(255, 170, 120, 0.15);
+  --text: #fff5f2;
+  --muted: #d5b5ab;
+  --blue: #ff9266;
+  --blue-2: #ff6d56;
+  --green: #4ad4a2;
+  --red: #ff7b88;
+  --orange: #ffb363;
+  --yellow: #ffd27b;
+}
+
+:root[data-theme="grove"] {
+  --bg: #161f1b;
+  --bg-2: #203028;
+  --bg-3: #2c4136;
+  --panel: #22362c;
+  --panel-2: #2a4235;
+  --sidebar: #1a2c24;
+  --sidebar-2: #15231d;
+  --border: rgba(136, 224, 174, 0.14);
+  --text: #f5fff8;
+  --muted: #aacfb7;
+  --blue: #68d6a0;
+  --blue-2: #40bc85;
+  --green: #44d6a1;
+  --red: #ff827c;
+  --orange: #f7be6a;
+  --yellow: #f8e18d;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -36,10 +93,10 @@ body {
   color: var(--text);
   font-family: "IBM Plex Sans", sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(83, 185, 255, 0.18), transparent 24rem),
-    radial-gradient(circle at 80% 10%, rgba(63, 110, 255, 0.12), transparent 20rem),
-    radial-gradient(circle at bottom right, rgba(51, 208, 130, 0.08), transparent 28rem),
-    linear-gradient(180deg, #11172a 0%, #151d30 100%);
+    radial-gradient(circle at top left, color-mix(in srgb, var(--blue) 26%, transparent), transparent 24rem),
+    radial-gradient(circle at 80% 10%, color-mix(in srgb, var(--blue-2) 20%, transparent), transparent 20rem),
+    radial-gradient(circle at bottom right, color-mix(in srgb, var(--green) 14%, transparent), transparent 28rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg) 78%, black) 0%, var(--bg) 100%);
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -247,6 +304,32 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
+}
+
+.theme-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 2.45rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.theme-picker span {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.theme-select {
+  min-height: 2rem;
+  width: auto;
+  border-radius: 999px;
+  padding: 0.35rem 2rem 0.35rem 0.75rem;
+  background: rgba(10, 14, 27, 0.55);
 }
 
 .topbar-chip,
@@ -475,7 +558,8 @@ body {
 .mod-result-top,
 .mod-result-bottom,
 .runtime-badge-row,
-.server-action-row {
+.server-action-row,
+.server-row-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -639,6 +723,18 @@ button[type="submit"] {
   background: #1f87ff;
 }
 
+.danger-button {
+  min-height: 2.85rem;
+  width: 100%;
+  border: 1px solid rgba(255, 123, 136, 0.28);
+  border-radius: 0.8rem;
+  padding: 0.8rem 1.05rem;
+  background: rgba(255, 123, 136, 0.12);
+  color: #ffd7dc;
+  cursor: pointer;
+  transition: transform 180ms ease, filter 180ms ease, background 180ms ease;
+}
+
 .icon-button {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--border);
@@ -656,6 +752,7 @@ button[type="submit"] {
 
 button[type="submit"]:hover,
 .action-button:hover,
+.danger-button:hover,
 .secondary-button:hover,
 .icon-button:hover,
 .topbar-chip:hover {
@@ -681,6 +778,18 @@ button[type="submit"]:hover,
 .server-row {
   padding: 1rem;
   cursor: pointer;
+}
+
+.server-row-actions {
+  margin-left: auto;
+}
+
+.delete-server-button {
+  min-height: 2.2rem;
+  padding: 0.45rem 0.8rem;
+  color: #ffc7cf;
+  border-color: rgba(255, 123, 136, 0.2);
+  background: rgba(255, 123, 136, 0.1);
 }
 
 .server-path {
@@ -910,7 +1019,7 @@ button[type="submit"]:hover,
 
 .mod-result-top-rich {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.9rem;
 }
 

@@ -24,8 +24,8 @@
 
         <div class="sidebar-group">
           <div class="sidebar-group-label">Workspace</div>
-          <button id="menuCreate" type="button" class="sidebar-link active">Create Server</button>
-          <button id="menuInventory" type="button" class="sidebar-link">Inventory</button>
+          <button id="menuInventory" type="button" class="sidebar-link active">Inventory</button>
+          <button id="menuCreate" type="button" class="sidebar-link">Create Server</button>
         </div>
 
         <div class="sidebar-group">
@@ -68,6 +68,15 @@
             <span id="activeServerMeta" class="topbar-server-meta">Select one from Inventory to unlock management screens.</span>
           </div>
           <div class="topbar-status-row">
+            <label class="theme-picker" for="themeSelect">
+              <span>Theme</span>
+              <select id="themeSelect" class="theme-select">
+                <option value="midnight">Midnight</option>
+                <option value="harbor">Harbor</option>
+                <option value="ember">Ember</option>
+                <option value="grove">Grove</option>
+              </select>
+            </label>
             <span id="topbarRuntimeChip" class="topbar-chip">No runtime</span>
             <span id="topbarAddressChip" class="topbar-chip">No address</span>
             <span id="topbarHealthChip" class="topbar-chip">Waiting</span>
@@ -75,7 +84,7 @@
         </header>
 
         <section class="content-panels">
-          <article id="panelCreate" class="content-panel active">
+          <article id="panelCreate" class="content-panel">
             <div class="workspace-title">
               <div>
                 <p class="eyebrow">Provision</p>
@@ -191,7 +200,7 @@
             </div>
           </article>
 
-          <article id="panelInventory" class="content-panel">
+          <article id="panelInventory" class="content-panel active">
             <div class="workspace-title">
               <div>
                 <p class="eyebrow">Inventory</p>
@@ -367,6 +376,13 @@
                     <span>Path</span>
                     <strong id="managerPath">-</strong>
                   </div>
+                </section>
+                <section class="panel-card compact-card">
+                  <div class="panel-card-head panel-card-head-tight">
+                    <h2>Danger Zone</h2>
+                    <p>Stop the server before deleting it permanently.</p>
+                  </div>
+                  <button id="deleteServerButton" type="button" class="danger-button">Delete server</button>
                 </section>
               </aside>
             </div>
@@ -636,7 +652,7 @@
                   <div class="mods-selection-actions">
                     <button id="modsSelectAllButton" type="button" class="secondary-button">Select all</button>
                     <button id="modsClearSelectionButton" type="button" class="secondary-button">Clear</button>
-                    <button id="modsDownloadSelectedButton" type="button" class="action-button action-button-blue">Download selected</button>
+                    <button id="modsDownloadSelectedButton" type="button" class="action-button action-button-blue">Download selected + deps</button>
                   </div>
                 </div>
 

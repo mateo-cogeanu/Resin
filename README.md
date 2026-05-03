@@ -22,6 +22,7 @@ The current repository URL is:
 ### Server Lifecycle
 - create server folders with generated launcher and install scripts
 - start and stop managed servers from the WebUI
+- delete stopped servers and their Resin-managed backups from the WebUI
 - send live console commands
 - keep rolling console logs in the UI
 
@@ -75,6 +76,7 @@ The current repository URL is:
 - search Modrinth by server loader and Minecraft version
 - show mod icons when Modrinth provides them
 - select multiple mods and download them in one batch
+- resolve required Modrinth dependency chains automatically during install when upstream dependency ids are available
 - track installed mods from the server `mods` folder
 
 ## Project Structure
@@ -149,7 +151,7 @@ When you create a server, Resin:
 - non-macOS Java detection currently relies on `JAVA_HOME` or the first `java` available on `PATH` instead of enumerating every installed JDK
 - backup restore requires the server to be stopped and currently replaces the whole server folder with the selected snapshot
 - `Forge`, `NeoForge`, and `Quilt` still depend on upstream installer-style workflows, so future vendor-side changes can require follow-up adjustments in Resin
-- mod downloads currently focus on Modrinth compatibility and batch install flow, but do not yet resolve complex dependency chains automatically
+- dependencies that Modrinth exposes only as external files or without compatible project/version ids can still require manual follow-up after install
 
 ## Development Notes
 

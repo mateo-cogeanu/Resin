@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-05-03
+
+### Mods
+- replaced the single-project mod download flow with a dependency-aware batch installer for Modrinth-backed servers
+- added recursive required-dependency resolution using Modrinth project and version metadata so selected mods can pull in their required libraries automatically
+- cached project and version lookups during dependency planning so one batch install can reuse shared dependency results
+- added a persistent `.resin-mods.json` manifest so downloaded jars can be displayed with titles, versions, and dependency markers instead of only raw filenames
+- taught mod search results to flag already-installed projects and updated the installed-mod list UI to show dependency status
+- updated the frontend batch download flow to submit the full selection in one request and report installed, skipped, dependency, and manual-review counts back to the operator
+
+### Server Management
+- added a real server deletion workflow through `DELETE /api/servers/:id`
+- made server deletion remove both the live server folder and the matching Resin backup directory in one operation
+- exposed delete actions in both Inventory and the Console danger zone, with running-server protection so deletion stays intentional
+
+### UI and Navigation
+- changed the default landing screen from `Create` to `Inventory`
+- reordered the workspace navigation so `Inventory` comes before `Create Server`
+- added a persisted theme picker with four built-in palettes: `Midnight`, `Harbor`, `Ember`, and `Grove`
+- adjusted shared UI styling so the theme system affects the main app shell, top bar, inventory actions, and danger controls consistently
+
+### Documentation
+- updated `README.md` to document stopped-server deletion from the WebUI
+- updated `README.md` to document automatic Modrinth dependency resolution during mod installs
+- replaced the old mod-download limitation in `README.md` with the current upstream limitation around external or unresolved dependency references
+- recorded the new UI theme capability and inventory-first workflow in the changelog for future contributors
+- verified the dependency-aware install flow against a temporary Fabric server using a real mod with required dependencies, then deleted that temporary server through the new API
+- verified that required dependency resolution can still surface honest unresolved upstream cases when Modrinth has no compatible dependency version for the selected server
+
 ## 2026-05-02
 
 ### Documentation

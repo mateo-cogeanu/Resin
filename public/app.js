@@ -11,13 +11,14 @@ const state = {
   selectedServerId: "",
   selectedServer: null,
   detailTimer: null,
-  activeMenu: "create",
+  activeMenu: "inventory",
   modSearchResults: [],
   selectedModProjectIds: [],
   consoleFilter: "all",
   inventoryFilter: "all",
   inventorySearch: "",
   playersSearch: "",
+  theme: localStorage.getItem("resinTheme") || "midnight",
   commandHistory: JSON.parse(localStorage.getItem("resinCommandHistory") || "[]"),
   commandHistoryIndex: -1
 };
@@ -38,6 +39,7 @@ const createInsightList = document.getElementById("createInsightList");
 const serverList = document.getElementById("serverList");
 const activeServerDisplay = document.getElementById("activeServerDisplay");
 const activeServerMeta = document.getElementById("activeServerMeta");
+const themeSelect = document.getElementById("themeSelect");
 const topbarRuntimeChip = document.getElementById("topbarRuntimeChip");
 const topbarAddressChip = document.getElementById("topbarAddressChip");
 const topbarHealthChip = document.getElementById("topbarHealthChip");
@@ -98,6 +100,7 @@ const managerJava = document.getElementById("managerJava");
 const managerJavaBadge = document.getElementById("managerJavaBadge");
 const managerJavaReason = document.getElementById("managerJavaReason");
 const managerPath = document.getElementById("managerPath");
+const deleteServerButton = document.getElementById("deleteServerButton");
 const startServerButton = document.getElementById("startServerButton");
 const stopServerButton = document.getElementById("stopServerButton");
 const refreshServerButton = document.getElementById("refreshServerButton");
@@ -224,6 +227,15 @@ function renderSidebarStats() {
 function setSettingsStatus(message, tone = "") {
   settingsStatus.textContent = message;
   settingsStatus.className = `status-text ${tone}`.trim();
+}
+
+function applyTheme(theme) {
+  const selectedTheme = ["midnight", "harbor", "ember", "grove"].includes(theme) ? theme : "midnight";
+  // Persist the chosen palette on the root element so every screen can react without custom per-panel logic.
+  document.documentElement.dataset.theme = selectedTheme;
+  themeSelect.value = selectedTheme;
+  state.theme = selectedTheme;
+  localStorage.setItem("resinTheme", selectedTheme);
 }
 
 function setActiveMenu(menu) {
@@ -391,11 +403,15 @@ function renderServers() {
     const loaderName = state.loaders.find((loader) => loader.id === server.loader)?.name || server.loader;
     const activeClass = server.id === state.selectedServerId ? "active" : "";
     const javaLabel = server.javaRuntime?.major ? `Java ${server.javaRuntime.major}` : "Java auto";
+    const deleteDisabled = server.runtimeState === "running" ? "disabled" : "";
     return `
       <article class="server-row ${activeClass}" data-server-id="${server.id}">
         <div class="server-row-top">
           <strong>${server.name}</strong>
-          <span class="server-state">${server.runtimeState || server.status}</span>
+          <div class="server-row-actions">
+            <span class="server-state">${server.runtimeState || server.status}</span>
+            <button type="button" class="secondary-button delete-server-button" data-server-id="${server.id}" data-server-name="${server.name}" ${deleteDisabled}>Delete</button>
+          </div>
         </div>
         <div class="server-row-bottom">
           <span class="server-meta">${loaderName} · ${server.minecraftVersion}</span>
@@ -405,10 +421,6 @@ function renderServers() {
       </article>
     `;
   }).join("");
-
-  for (const row of serverList.querySelectorAll(".server-row")) {
-    row.addEventListener("click", () => selectServer(row.dataset.serverId));
-  }
 }
 
 function formatTime(value) {
@@ -667,7 +679,9 @@ function renderInstalledMods(mods) {
   installedModsList.innerHTML = mods.length
     ? mods.map((mod) => `
       <div class="installed-item">
-        <strong>${mod.filename}</strong>
+        <strong>${mod.title || mod.filename}</strong>
+        <div class="server-meta">${mod.versionNumber || mod.filename}</div>
+        ${mod.isDependency ? `<span class="runtime-badge">dependency</span>` : ""}
       </div>
     `).join("")
     : `<div class="empty-state">No downloaded mods yet.</div>`;
@@ -691,6 +705,7 @@ function renderModResults() {
               <span class="server-meta">${mod.author}</span>
             </div>
           </div>
+          ${mod.alreadyInstalled ? `<span class="runtime-badge">Installed</span>` : ""}
         </div>
         <p>${mod.description || "No description provided."}</p>
         <div class="mod-result-bottom">
@@ -721,6 +736,7 @@ function renderMods(server, loaderName) {
   modsLoader.textContent = loaderName;
   modsVersion.textContent = server.minecraftVersion;
   modsPath.textContent = server.path;
+  modsSearchHint.textContent = `Results are filtered to ${loaderName} on Minecraft ${server.minecraftVersion}, and required Modrinth dependencies will be downloaded automatically.`;
   renderInstalledMods(server.mods || []);
   renderModSelectionSummary();
 }
@@ -743,6 +759,7 @@ function renderSelectedServer() {
     managerTitle.textContent = "Select a server";
     managerRuntime.textContent = "Idle";
     managerJavaBadge.textContent = "Java";
+    deleteServerButton.disabled = true;
 
     playersEmpty.hidden = false;
     playersPanel.hidden = true;
@@ -794,6 +811,7 @@ function renderSelectedServer() {
   managerJavaBadge.textContent = server.javaRuntime ? `Java ${server.javaRuntime.major}` : "Java auto";
   managerJavaReason.textContent = server.javaRuntime?.reason || "Resin selected the best available Java runtime.";
   managerPath.textContent = server.path;
+  deleteServerButton.disabled = isRunning;
   startServerButton.disabled = isRunning;
   stopServerButton.disabled = !isRunning;
   overviewStartButton.disabled = isRunning;
@@ -933,28 +951,8 @@ async function searchMods() {
     const payload = await api(`/api/servers/${state.selectedServerId}/mods?query=${encodeURIComponent(modSearchInput.value)}`);
     state.modSearchResults = payload.hits || [];
     state.selectedModProjectIds = [];
-    modsSearchHint.textContent = `Showing Modrinth results for ${payload.server.loader} on Minecraft ${payload.server.minecraftVersion}.`;
+    modsSearchHint.textContent = `Showing Modrinth results for ${payload.server.loader} on Minecraft ${payload.server.minecraftVersion}. Required dependencies will be resolved automatically.`;
     renderModResults();
-  } catch (error) {
-    setStatus(error.message, "status-error");
-  }
-}
-
-async function installMod(projectId) {
-  if (!state.selectedServerId) {
-    return;
-  }
-  try {
-    const payload = await api(`/api/servers/${state.selectedServerId}/mods`, {
-      method: "POST",
-      body: JSON.stringify({ projectId })
-    });
-    if (state.selectedServer) {
-      state.selectedServer.mods = payload.mods;
-      renderInstalledMods(payload.mods);
-    }
-    setStatus(`Installed ${payload.installed.filename}.`, "status-success");
-    await refreshSelectedServer({ silent: true });
   } catch (error) {
     setStatus(error.message, "status-error");
   }
@@ -984,29 +982,63 @@ async function downloadSelectedMods() {
     return;
   }
   modsDownloadSelectedButton.disabled = true;
-  setStatus(`Downloading ${state.selectedModProjectIds.length} selected mod${state.selectedModProjectIds.length === 1 ? "" : "s"}...`);
-  let installedCount = 0;
+  setStatus(`Resolving dependencies and downloading ${state.selectedModProjectIds.length} selected mod${state.selectedModProjectIds.length === 1 ? "" : "s"}...`);
   try {
-    for (const projectId of state.selectedModProjectIds) {
-      const payload = await api(`/api/servers/${state.selectedServerId}/mods`, {
-        method: "POST",
-        body: JSON.stringify({ projectId })
-      });
-      installedCount += 1;
-      if (state.selectedServer) {
-        state.selectedServer.mods = payload.mods;
-      }
+    const payload = await api(`/api/servers/${state.selectedServerId}/mods`, {
+      method: "POST",
+      body: JSON.stringify({ projectIds: state.selectedModProjectIds })
+    });
+    if (state.selectedServer) {
+      state.selectedServer.mods = payload.mods;
     }
+    const installedProjectIds = new Set([...(payload.installed || []), ...(payload.skipped || [])].map((entry) => entry.projectId).filter(Boolean));
+    state.modSearchResults = state.modSearchResults.map((mod) => ({
+      ...mod,
+      alreadyInstalled: mod.alreadyInstalled || installedProjectIds.has(mod.projectId)
+    }));
+
     state.selectedModProjectIds = [];
     renderInstalledMods(state.selectedServer?.mods || []);
     renderModResults();
     await refreshSelectedServer({ silent: true });
-    setStatus(`Downloaded ${installedCount} mod${installedCount === 1 ? "" : "s"}.`, "status-success");
+    const dependencyCount = (payload.installed || []).filter((entry) => entry.isDependency).length;
+    const unresolvedCount = (payload.unresolved || []).length;
+    const summary = [
+      `Installed ${(payload.installed || []).length} file${(payload.installed || []).length === 1 ? "" : "s"}`,
+      dependencyCount ? `${dependencyCount} dependency file${dependencyCount === 1 ? "" : "s"}` : "",
+      (payload.skipped || []).length ? `${payload.skipped.length} already present` : "",
+      unresolvedCount ? `${unresolvedCount} need manual review` : ""
+    ].filter(Boolean).join(" · ");
+    setStatus(summary, unresolvedCount ? "status-error" : "status-success");
   } catch (error) {
     setStatus(error.message, "status-error");
   } finally {
     modsDownloadSelectedButton.disabled = false;
     renderModSelectionSummary();
+  }
+}
+
+async function deleteServer(serverId, serverName = "this server") {
+  const target = state.servers.find((server) => server.id === serverId);
+  if (!window.confirm(`Delete ${serverName}? This removes the server folder and all Resin backups for it.`)) {
+    return;
+  }
+
+  try {
+    await api(`/api/servers/${serverId}`, {
+      method: "DELETE"
+    });
+    if (state.selectedServerId === serverId) {
+      state.selectedServerId = "";
+      state.selectedServer = null;
+      stopDetailPolling();
+      renderSelectedServer();
+    }
+    await refreshServers();
+    setActiveMenu("inventory");
+    setStatus(`${target?.name || serverName} was deleted.`, "status-success");
+  } catch (error) {
+    setStatus(error.message, "status-error");
   }
 }
 
@@ -1216,8 +1248,14 @@ for (const [key, button] of Object.entries(menuButtons)) {
   button.addEventListener("click", () => setActiveMenu(key));
 }
 
+themeSelect.addEventListener("change", () => applyTheme(themeSelect.value));
 startServerButton.addEventListener("click", startSelectedServer);
 stopServerButton.addEventListener("click", stopSelectedServer);
+deleteServerButton.addEventListener("click", () => {
+  if (state.selectedServer) {
+    deleteServer(state.selectedServer.id, state.selectedServer.name);
+  }
+});
 overviewStartButton.addEventListener("click", startSelectedServer);
 overviewStopButton.addEventListener("click", stopSelectedServer);
 overviewConsoleButton.addEventListener("click", () => setActiveMenu("manage"));
@@ -1233,6 +1271,20 @@ saveRawSettingsButton.addEventListener("click", saveRawSettings);
 inventorySearch.addEventListener("input", () => {
   state.inventorySearch = inventorySearch.value;
   renderServers();
+});
+
+serverList.addEventListener("click", (event) => {
+  const deleteButton = event.target.closest(".delete-server-button");
+  if (deleteButton) {
+    event.stopPropagation();
+    deleteServer(deleteButton.dataset.serverId, deleteButton.dataset.serverName);
+    return;
+  }
+
+  const row = event.target.closest(".server-row");
+  if (row) {
+    selectServer(row.dataset.serverId);
+  }
 });
 
 playersSearch.addEventListener("input", () => {
@@ -1337,6 +1389,7 @@ async function init() {
       api("/api/loaders"),
       api("/api/java-runtimes")
     ]);
+    applyTheme(state.theme);
     state.loaders = loadersPayload.loaders || [];
     state.javaRuntimes = javaPayload.runtimes || [];
     renderLoaderCards();
@@ -1345,7 +1398,7 @@ async function init() {
     renderSelectedServer();
     renderModResults();
     renderModSelectionSummary();
-    setActiveMenu("create");
+    setActiveMenu("inventory");
     await refreshServers();
   } catch (error) {
     setStatus(error.message, "status-error");

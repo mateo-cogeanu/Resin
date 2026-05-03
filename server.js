@@ -115,6 +115,10 @@ function activityFilePath(serverId) {
   return path.join(SERVERS_DIR, serverId, ".resin-activity.json");
 }
 
+function modManifestFilePath(serverId) {
+  return path.join(SERVERS_DIR, serverId, ".resin-mods.json");
+}
+
 function boolFromProperty(value, fallback = false) {
   if (value === undefined || value === null || value === "") {
     return fallback;
@@ -673,6 +677,8 @@ async function searchModsForServer(serverId, query) {
   url.searchParams.set("index", "downloads");
   url.searchParams.set("facets", JSON.stringify(facets));
   const payload = await fetchJson(url.toString());
+  const installedManifest = await readInstalledModManifest(serverId);
+  const installedProjectIds = new Set(installedManifest.map((entry) => entry.projectId).filter(Boolean));
 
   return {
     server,
@@ -685,7 +691,8 @@ async function searchModsForServer(serverId, query) {
       downloads: hit.downloads,
       iconUrl: hit.icon_url,
       latestVersion: hit.latest_version,
-      categories: hit.display_categories || hit.categories || []
+      categories: hit.display_categories || hit.categories || [],
+      alreadyInstalled: installedProjectIds.has(hit.project_id)
     }))
   };
 }
@@ -693,14 +700,23 @@ async function searchModsForServer(serverId, query) {
 async function listInstalledMods(serverId) {
   const server = await readServerRecord(serverId);
   const modsDir = path.join(server.path, "mods");
+  const manifest = await readJsonFile(modManifestFilePath(serverId), []);
+  const manifestByFile = new Map(
+    manifest
+      .filter((entry) => entry && entry.filename)
+      .map((entry) => [entry.filename, entry])
+  );
   try {
     const entries = await fs.readdir(modsDir, { withFileTypes: true });
     return entries
       .filter((entry) => entry.isFile() && entry.name.endsWith(".jar"))
       .map((entry) => ({
-        filename: entry.name
+        filename: entry.name,
+        title: manifestByFile.get(entry.name)?.title || "",
+        versionNumber: manifestByFile.get(entry.name)?.versionNumber || "",
+        isDependency: Boolean(manifestByFile.get(entry.name)?.isDependency)
       }))
-      .sort((left, right) => left.filename.localeCompare(right.filename));
+      .sort((left, right) => (left.title || left.filename).localeCompare(right.title || right.filename));
   } catch {
     return [];
   }
@@ -736,6 +752,14 @@ async function appendActivity(serverId, type, message, detail = {}) {
     activity.splice(0, activity.length - 250);
   }
   await writeJsonFile(activityFilePath(serverId), activity);
+}
+
+async function readInstalledModManifest(serverId) {
+  return readJsonFile(modManifestFilePath(serverId), []);
+}
+
+async function writeInstalledModManifest(serverId, entries) {
+  await writeJsonFile(modManifestFilePath(serverId), entries);
 }
 
 async function readServerProperties(server) {
@@ -1301,13 +1325,28 @@ async function buildServerOverview(serverId, server, players, mods, backups, act
   };
 }
 
-async function installModForServer(serverId, projectId) {
-  const server = await readServerRecord(serverId);
-  if (!supportsMods(server.loader)) {
-    throw new Error("This server loader does not support downloadable mods in Resin.");
+async function fetchProjectDetails(projectId, cache) {
+  if (!cache.has(projectId)) {
+    cache.set(projectId, fetchJson(`${MODRINTH_API}/project/${projectId}`));
+  }
+  return cache.get(projectId);
+}
+
+function pickPrimaryModFile(version) {
+  return version?.files?.find((file) => file.primary && file.filename?.endsWith(".jar"))
+    || version?.files?.find((file) => file.filename?.endsWith(".jar"))
+    || version?.files?.find((file) => file.primary)
+    || version?.files?.[0]
+    || null;
+}
+
+async function fetchCompatibleProjectVersion(server, projectId, versionCache) {
+  const loader = modrinthLoader(server.loader);
+  const cacheKey = `${projectId}:${loader}:${server.minecraftVersion}`;
+  if (versionCache.has(cacheKey)) {
+    return versionCache.get(cacheKey);
   }
 
-  const loader = modrinthLoader(server.loader);
   const baseUrl = new URL(`${MODRINTH_API}/project/${projectId}/version`);
   baseUrl.searchParams.set("loaders", JSON.stringify([loader]));
   baseUrl.searchParams.set("game_versions", JSON.stringify([server.minecraftVersion]));
@@ -1321,28 +1360,220 @@ async function installModForServer(serverId, projectId) {
   }
 
   const version = versions[0];
-  const primaryFile = version?.files?.find((file) => file.primary) || version?.files?.[0];
-  if (!primaryFile?.url || !primaryFile?.filename) {
-    throw new Error("No compatible downloadable mod file was found.");
+  if (!version) {
+    throw new Error("No compatible Modrinth version was found for this server.");
   }
 
+  versionCache.set(cacheKey, version);
+  return version;
+}
+
+async function fetchVersionById(versionId, versionCache) {
+  if (!versionCache.has(versionId)) {
+    versionCache.set(versionId, fetchJson(`${MODRINTH_API}/version/${versionId}`));
+  }
+  return versionCache.get(versionId);
+}
+
+async function resolveModVersionForDependency(server, dependency, versionCache) {
+  if (dependency.version_id) {
+    return fetchVersionById(dependency.version_id, versionCache);
+  }
+  if (dependency.project_id || dependency.projectId) {
+    return fetchCompatibleProjectVersion(server, dependency.project_id || dependency.projectId, versionCache);
+  }
+  throw new Error("This dependency does not expose a Modrinth project or version id.");
+}
+
+async function resolveModInstallPlan(server, projectIds) {
+  const projectCache = new Map();
+  const versionCache = new Map();
+  const seenProjects = new Map();
+  const unresolved = [];
+
+  // One graph walk gives batch installs stable ordering and keeps shared dependencies from downloading twice.
+  async function visitProject(reference, context) {
+    let version;
+    try {
+      version = context.versionId
+        ? await fetchVersionById(context.versionId, versionCache)
+        : await resolveModVersionForDependency(server, reference, versionCache);
+    } catch (error) {
+      unresolved.push({
+        projectId: reference.project_id || reference.projectId || null,
+        versionId: reference.version_id || context.versionId || null,
+        requiredBy: context.requiredByTitle || null,
+        reason: error instanceof Error ? error.message : "Unknown dependency resolution error."
+      });
+      return;
+    }
+
+    const projectId = version.project_id || reference.project_id || reference.projectId;
+    if (!projectId) {
+      unresolved.push({
+        projectId: null,
+        versionId: version.id || null,
+        requiredBy: context.requiredByTitle || null,
+        reason: "Resolved dependency version is missing a project id."
+      });
+      return;
+    }
+
+    const existing = seenProjects.get(projectId);
+    if (existing) {
+      if (!context.isDependency) {
+        existing.isDependency = false;
+      }
+      return;
+    }
+
+    const project = await fetchProjectDetails(projectId, projectCache);
+    const primaryFile = pickPrimaryModFile(version);
+    if (!primaryFile?.url || !primaryFile?.filename) {
+      unresolved.push({
+        projectId,
+        versionId: version.id,
+        requiredBy: context.requiredByTitle || null,
+        reason: "No compatible downloadable mod file was found."
+      });
+      return;
+    }
+
+    const entry = {
+      projectId,
+      versionId: version.id,
+      title: project.title || project.slug || projectId,
+      slug: project.slug || projectId,
+      iconUrl: project.icon_url || null,
+      versionNumber: version.version_number,
+      filename: primaryFile.filename,
+      url: primaryFile.url,
+      isDependency: context.isDependency,
+      dependencyType: context.dependencyType || "required",
+      requiredByProjectId: context.requiredByProjectId || null,
+      requiredByTitle: context.requiredByTitle || null,
+      rootProjectId: context.rootProjectId || projectId
+    };
+    seenProjects.set(projectId, entry);
+
+    for (const dependency of version.dependencies || []) {
+      if (dependency.dependency_type !== "required") {
+        continue;
+      }
+      await visitProject(dependency, {
+        isDependency: true,
+        dependencyType: dependency.dependency_type,
+        requiredByProjectId: projectId,
+        requiredByTitle: entry.title,
+        rootProjectId: context.rootProjectId || projectId,
+        versionId: dependency.version_id || null
+      });
+    }
+  }
+
+  for (const projectId of uniqueBy(projectIds.filter(Boolean), (value) => value)) {
+    await visitProject({ projectId }, {
+      isDependency: false,
+      dependencyType: "selected",
+      rootProjectId: projectId,
+      versionId: null
+    });
+  }
+
+  return {
+    resolved: Array.from(seenProjects.values()),
+    unresolved
+  };
+}
+
+function mergeInstalledManifestEntries(existingEntries, changedEntries) {
+  const next = new Map(
+    existingEntries
+      .filter((entry) => entry && entry.filename)
+      .map((entry) => [entry.filename, entry])
+  );
+
+  for (const entry of changedEntries) {
+    next.set(entry.filename, {
+      filename: entry.filename,
+      projectId: entry.projectId,
+      versionId: entry.versionId,
+      versionNumber: entry.versionNumber,
+      title: entry.title,
+      slug: entry.slug,
+      iconUrl: entry.iconUrl,
+      isDependency: entry.isDependency,
+      rootProjectId: entry.rootProjectId,
+      updatedAt: new Date().toISOString()
+    });
+  }
+
+  return Array.from(next.values()).sort((left, right) => (left.title || left.filename).localeCompare(right.title || right.filename));
+}
+
+async function installModsForServer(serverId, projectIds) {
+  const server = await readServerRecord(serverId);
+  if (!supportsMods(server.loader)) {
+    throw new Error("This server loader does not support downloadable mods in Resin.");
+  }
+
+  const selectedProjectIds = uniqueBy(
+    (Array.isArray(projectIds) ? projectIds : [projectIds])
+      .map((value) => String(value || "").trim())
+      .filter(Boolean),
+    (value) => value
+  );
+  if (!selectedProjectIds.length) {
+    throw new Error("Choose at least one mod to download.");
+  }
+
+  const plan = await resolveModInstallPlan(server, selectedProjectIds);
   const modsDir = path.join(server.path, "mods");
   await fs.mkdir(modsDir, { recursive: true });
-  await streamToFile(primaryFile.url, path.join(modsDir, primaryFile.filename));
-  await appendActivity(serverId, "mods", `Installed mod ${primaryFile.filename}.`, {
-    projectId,
-    versionId: version.id
+
+  const existingManifest = await readInstalledModManifest(serverId);
+  const existingFiles = new Set((await listInstalledMods(serverId)).map((mod) => mod.filename));
+  const installed = [];
+  const skipped = [];
+
+  for (const entry of plan.resolved) {
+    if (existingFiles.has(entry.filename)) {
+      skipped.push(entry);
+      continue;
+    }
+
+    await streamToFile(entry.url, path.join(modsDir, entry.filename));
+    existingFiles.add(entry.filename);
+    installed.push(entry);
+  }
+
+  await writeInstalledModManifest(serverId, mergeInstalledManifestEntries(existingManifest, [...skipped, ...installed]));
+
+  const selectedTitles = plan.resolved
+    .filter((entry) => !entry.isDependency)
+    .map((entry) => entry.title);
+  await appendActivity(serverId, "mods", `Processed mod install plan for ${selectedTitles.join(", ") || "selected mods"}.`, {
+    selectedProjectIds,
+    installed: installed.map((entry) => ({
+      projectId: entry.projectId,
+      versionId: entry.versionId,
+      filename: entry.filename,
+      dependency: entry.isDependency
+    })),
+    skipped: skipped.map((entry) => entry.filename),
+    unresolved: plan.unresolved
   });
 
   return {
-    installed: {
-      projectId,
-      versionId: version.id,
-      versionNumber: version.version_number,
-      filename: primaryFile.filename
-    },
+    installed,
+    skipped,
+    unresolved: plan.unresolved,
     mods: await listInstalledMods(serverId)
   };
+}
+
+async function installModForServer(serverId, projectId) {
+  return installModsForServer(serverId, [projectId]);
 }
 
 function getStartCommand(serverDir) {
@@ -1371,6 +1602,25 @@ async function readServerRecord(serverId) {
   return {
     ...parsed,
     path: serverDir
+  };
+}
+
+async function deleteServer(serverId) {
+  const runtime = SERVER_PROCESSES.get(serverId);
+  if (runtime?.state === "running") {
+    throw new Error("Stop the server before deleting it.");
+  }
+
+  const server = await readServerRecord(serverId);
+  // Delete the live server and its backup snapshots together so inventory never points at half-removed data.
+  await Promise.all([
+    fs.rm(server.path, { recursive: true, force: true }),
+    fs.rm(path.join(BACKUPS_DIR, serverId), { recursive: true, force: true })
+  ]);
+  SERVER_PROCESSES.delete(serverId);
+  return {
+    deleted: true,
+    serverId
   };
 }
 
@@ -1924,6 +2174,10 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, await readServerDetail(serverId));
       }
 
+      if (req.method === "DELETE" && !action) {
+        return json(res, 200, await deleteServer(serverId));
+      }
+
       if (req.method === "POST" && action === "start") {
         return json(res, 200, await startManagedServer(serverId));
       }
@@ -1991,7 +2245,7 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === "POST" && action === "mods") {
         const payload = await readBody(req);
-        return json(res, 200, await installModForServer(serverId, payload.projectId));
+        return json(res, 200, await installModsForServer(serverId, payload.projectIds || payload.projectId));
       }
     }
 
