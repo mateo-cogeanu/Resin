@@ -23,6 +23,7 @@ The current repository URL is:
 - create server folders with generated launcher and install scripts
 - start and stop managed servers from the WebUI
 - delete stopped servers and their Resin-managed backups from the WebUI
+- clone existing server setups into a fresh new server profile
 - send live console commands
 - keep rolling console logs in the UI
 
@@ -37,7 +38,9 @@ The current repository URL is:
 - `Create`
 - `Inventory`
 - `Overview`
+- `Health`
 - `Console`
+- `Files`
 - `Players`
 - `Settings`
 - `Backups`
@@ -48,20 +51,32 @@ The current repository URL is:
 - list players who have joined the server
 - show online and offline state when runtime data is available
 - grant and remove OP
+- kick online players
 - add and remove whitelist entries
 - ban and unban players
 
 ### Settings
 - edit managed `server.properties` values from the UI
 - edit the full raw `server.properties` file from the UI when you need complete control
+- edit runtime profile values such as memory, Java override, and extra JVM args
 - persist changes back to disk
 - reflect important mirrored settings like `motd`, `port`, and `online-mode`
 
 ### Backups
 - create timestamped snapshot backups of server folders
 - restore a server directly from a selected snapshot backup
+- configure scheduled backups with hourly, daily, or weekly cadence and retention
 - store backups outside the live server directory
 - expose backup history in the UI
+
+### Files and Config
+- browse server folders directly from the WebUI
+- open supported text-based files in a built-in editor
+- upload, download, rename, delete, and create folders inside the selected server
+
+### Health
+- surface blockers such as missing launch files, EULA state, port conflicts, and installer readiness
+- show Java profile status and mod follow-up warnings in one dedicated screen
 
 ### Activity
 - track important events such as:
@@ -77,7 +92,12 @@ The current repository URL is:
 - show mod icons when Modrinth provides them
 - select multiple mods and download them in one batch
 - resolve required Modrinth dependency chains automatically during install when upstream dependency ids are available
+- remove installed mods and check for available compatible updates on demand
 - track installed mods from the server `mods` folder
+
+### Templates
+- save reusable server templates from an existing server
+- apply a saved template to prefill Create
 
 ## Project Structure
 
@@ -152,6 +172,7 @@ When you create a server, Resin:
 - backup restore requires the server to be stopped and currently replaces the whole server folder with the selected snapshot
 - `Forge`, `NeoForge`, and `Quilt` still depend on upstream installer-style workflows, so future vendor-side changes can require follow-up adjustments in Resin
 - dependencies that Modrinth exposes only as external files or without compatible project/version ids can still require manual follow-up after install
+- the built-in file editor intentionally focuses on text-like server files and is not a full binary file editor or archive manager
 
 ## Development Notes
 

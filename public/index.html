@@ -31,7 +31,9 @@
         <div class="sidebar-group">
           <div class="sidebar-group-label">Server Management</div>
           <button id="menuOverview" type="button" class="sidebar-link">Overview</button>
+          <button id="menuHealth" type="button" class="sidebar-link">Health</button>
           <button id="menuManage" type="button" class="sidebar-link">Console</button>
+          <button id="menuFiles" type="button" class="sidebar-link">Files</button>
           <button id="menuPlayers" type="button" class="sidebar-link">Players</button>
           <button id="menuSettings" type="button" class="sidebar-link">Settings</button>
           <button id="menuBackups" type="button" class="sidebar-link">Backups</button>
@@ -102,6 +104,18 @@
 
                 <form id="createForm" class="create-form">
                   <div class="form-section">
+                    <div class="form-section-title">Template</div>
+                    <div class="field-grid">
+                      <label class="field">
+                        <span>Apply saved template</span>
+                        <select id="templateSelect" name="templateSelect">
+                          <option value="">Start from scratch</option>
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="form-section">
                     <div class="form-section-title">Loader</div>
                     <div class="loader-grid" id="loaderGrid"></div>
                   </div>
@@ -147,6 +161,16 @@
                       <label class="field">
                         <span>Port</span>
                         <input id="port" name="port" type="number" min="1024" value="25565" />
+                      </label>
+                      <label class="field">
+                        <span>Java profile</span>
+                        <select id="createJavaOverride" name="javaOverrideMajor">
+                          <option value="">Auto select</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Extra JVM args</span>
+                        <input id="createExtraJvmArgs" name="extraJvmArgs" type="text" placeholder="-XX:+UseG1GC" />
                       </label>
                     </div>
                   </div>
@@ -196,6 +220,21 @@
                   </div>
                   <div id="createInsightList" class="stack-list"></div>
                 </section>
+
+                <section class="panel-card compact-card">
+                  <div class="panel-card-head">
+                    <h2>Templates</h2>
+                    <p>Reuse server profiles or save one from the selected server.</p>
+                  </div>
+                  <div class="stack-list">
+                    <label class="field">
+                      <span>Template name</span>
+                      <input id="templateNameInput" type="text" placeholder="modded-fabric-lobby" />
+                    </label>
+                    <button id="saveTemplateButton" type="button" class="secondary-button">Save selected server as template</button>
+                    <div id="templateList" class="stack-list"></div>
+                  </div>
+                </section>
               </aside>
             </div>
           </article>
@@ -226,6 +265,28 @@
               <div id="inventorySummary" class="inventory-summary"></div>
               <div id="serverList" class="server-list"></div>
             </section>
+          </article>
+
+          <article id="panelHealth" class="content-panel">
+            <div class="workspace-title">
+              <div>
+                <p class="eyebrow">Health</p>
+                <h1 id="healthTitle">Select a server</h1>
+              </div>
+              <div id="healthRuntime" class="status-pill">No server</div>
+            </div>
+
+            <div id="healthEmpty" class="empty-state">Choose a server to inspect install blockers, Java profile, EULA state, port availability, and mod follow-up warnings.</div>
+
+            <div id="healthPanel" class="workspace-grid workspace-grid-health" hidden>
+              <section class="panel-card">
+                <div class="panel-card-head">
+                  <h2>Health Center</h2>
+                  <p id="healthSummary">Resin checks the current server state and surfaces the items that usually break startup or maintenance.</p>
+                </div>
+                <div id="healthChecks" class="stack-list"></div>
+              </section>
+            </div>
           </article>
 
           <article id="panelOverview" class="content-panel">
@@ -411,6 +472,9 @@
                 <div class="inventory-toolbar">
                   <input id="playersSearch" type="text" placeholder="Filter players by name or status" />
                 </div>
+                <div class="mods-search-row">
+                  <input id="playerReasonInput" type="text" placeholder="Reason for kick or ban" />
+                </div>
                 <div id="playersList" class="players-list"></div>
               </section>
 
@@ -547,6 +611,30 @@
                     <p class="status-text">Use this when you want to edit any property, not only the guided fields.</p>
                   </div>
                 </div>
+
+                <div class="form-section">
+                  <div class="form-section-title">Runtime Profile</div>
+                  <div class="field-grid">
+                    <label class="field">
+                      <span>Memory</span>
+                      <input id="runtimeMemoryMb" type="number" min="1024" step="512" />
+                    </label>
+                    <label class="field">
+                      <span>Java profile</span>
+                      <select id="runtimeJavaOverride">
+                        <option value="">Auto select</option>
+                      </select>
+                    </label>
+                    <label class="field field-full">
+                      <span>Extra JVM args</span>
+                      <input id="runtimeExtraJvmArgs" type="text" placeholder="-XX:+UseG1GC -XX:+ParallelRefProcEnabled" />
+                    </label>
+                  </div>
+                  <div class="action-row">
+                    <button id="saveRuntimeButton" type="button" class="secondary-button">Save runtime profile</button>
+                    <p class="status-text">Launchers will be regenerated with the updated memory, Java choice, and JVM args.</p>
+                  </div>
+                </div>
               </section>
 
               <aside class="side-rail">
@@ -584,6 +672,27 @@
                   <button id="createBackupButton" type="button" class="action-button action-button-blue">Create backup</button>
                 </div>
 
+                <div class="backup-schedule-grid">
+                  <label class="field">
+                    <span>Schedule</span>
+                    <select id="backupCadence">
+                      <option value="hourly">Hourly</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Retention</span>
+                    <input id="backupRetention" type="number" min="1" max="60" value="7" />
+                  </label>
+                  <label class="toggle">
+                    <input id="backupScheduleEnabled" type="checkbox" />
+                    <span>Enable scheduled backups</span>
+                  </label>
+                  <button id="saveBackupScheduleButton" type="button" class="secondary-button">Save backup schedule</button>
+                </div>
+                <div id="backupScheduleSummary" class="server-meta"></div>
+
                 <div id="backupsList" class="stack-list"></div>
               </section>
 
@@ -594,6 +703,48 @@
                     <p>Backups are stored outside the server folder.</p>
                   </div>
                   <div class="info-box">If the server is running, Resin asks it to flush world data before copying files.</div>
+                </section>
+              </aside>
+            </div>
+          </article>
+
+          <article id="panelFiles" class="content-panel">
+            <div class="workspace-title">
+              <div>
+                <p class="eyebrow">Files</p>
+                <h1 id="filesTitle">Select a server</h1>
+              </div>
+              <div id="filesRuntime" class="status-pill">No server</div>
+            </div>
+
+            <div id="filesEmpty" class="empty-state">Choose a server to browse folders, edit text configs, upload files, download files, and rename or delete paths.</div>
+
+            <div id="filesPanel" class="workspace-grid workspace-grid-files" hidden>
+              <section class="panel-card">
+                <div class="panel-card-head">
+                  <h2>File Browser</h2>
+                  <p id="filesPathLabel">Browse server files and open supported text formats directly in Resin.</p>
+                </div>
+                <div class="mods-search-row">
+                  <button id="filesUpButton" type="button" class="secondary-button">Up</button>
+                  <input id="newFolderInput" type="text" placeholder="new-folder" />
+                  <button id="createFolderButton" type="button" class="secondary-button">Create folder</button>
+                  <input id="uploadFileInput" type="file" />
+                </div>
+                <div id="fileList" class="stack-list"></div>
+              </section>
+
+              <aside class="side-rail">
+                <section class="panel-card compact-card">
+                  <div class="panel-card-head panel-card-head-tight">
+                    <h2>Editor</h2>
+                    <p id="fileEditorLabel">Select a text file to edit it here.</p>
+                  </div>
+                  <textarea id="fileEditor" rows="18" placeholder="Choose a text file from the browser to open it."></textarea>
+                  <div class="action-row">
+                    <button id="saveFileButton" type="button" class="secondary-button">Save file</button>
+                    <a id="downloadFileLink" class="secondary-button anchor-button" href="#" target="_blank" rel="noopener">Download</a>
+                  </div>
                 </section>
               </aside>
             </div>
@@ -656,6 +807,14 @@
                     <button id="modsClearSelectionButton" type="button" class="secondary-button">Clear</button>
                     <button id="modsDownloadSelectedButton" type="button" class="action-button action-button-blue">Download selected + deps</button>
                   </div>
+                </div>
+
+                <div class="panel-card compact-card mods-inline-card">
+                  <div class="panel-card-head panel-card-head-tight">
+                    <h2>Updates and Warnings</h2>
+                    <p>See installed mod updates and any dependency follow-up Resin could not resolve automatically.</p>
+                  </div>
+                  <div id="modUpdateList" class="stack-list"></div>
                 </div>
 
                 <div id="modResults" class="mod-results"></div>

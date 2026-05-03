@@ -4,16 +4,19 @@ const path = require("node:path");
 const { createReadStream } = require("node:fs");
 const { spawn, spawnSync } = require("node:child_process");
 const { pipeline } = require("node:stream/promises");
+const net = require("node:net");
 
 const PORT = Number(process.env.PORT || 3000);
 const ROOT_DIR = __dirname;
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
 const SERVERS_DIR = path.join(ROOT_DIR, "servers");
 const BACKUPS_DIR = path.join(ROOT_DIR, "backups");
+const TEMPLATES_DIR = path.join(ROOT_DIR, "templates");
 const SERVER_PROCESSES = new Map();
 const MAX_LOG_LINES = 500;
 const MODRINTH_API = "https://api.modrinth.com/v2";
 const PLAYER_NAME_PATTERN = /[A-Za-z0-9_]{3,16}/;
+const TEXT_FILE_EXTENSIONS = new Set([".txt", ".json", ".properties", ".yml", ".yaml", ".toml", ".cfg", ".conf", ".ini", ".md", ".log", ".xml", ".mcmeta", ".sh", ".cmd", ".bat"]);
 const MANAGED_SERVER_PROPERTY_KEYS = [
   "motd",
   "server-port",
@@ -117,6 +120,14 @@ function activityFilePath(serverId) {
 
 function modManifestFilePath(serverId) {
   return path.join(SERVERS_DIR, serverId, ".resin-mods.json");
+}
+
+function backupScheduleFilePath(serverId) {
+  return path.join(SERVERS_DIR, serverId, ".resin-backup-schedule.json");
+}
+
+function templateFilePath(templateId) {
+  return path.join(TEMPLATES_DIR, `${templateId}.json`);
 }
 
 function boolFromProperty(value, fallback = false) {
@@ -427,6 +438,27 @@ function uniqueBy(list, keyFn) {
     seen.add(key);
     return true;
   });
+}
+
+function isTextLikePath(filePath) {
+  return TEXT_FILE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+}
+
+function normalizeServerRelativePath(relativePath = "") {
+  const clean = path.posix.normalize(`/${String(relativePath || "").replace(/\\/g, "/")}`).replace(/^\/+/, "");
+  return clean === "." ? "" : clean;
+}
+
+function serverAbsolutePath(server, relativePath = "") {
+  const normalized = normalizeServerRelativePath(relativePath);
+  const absolute = path.normalize(path.join(server.path, normalized));
+  if (!absolute.startsWith(server.path)) {
+    throw new Error("That path is outside the selected server.");
+  }
+  return {
+    normalized,
+    absolute
+  };
 }
 
 function parseXmlValues(xml, tag) {
@@ -762,6 +794,62 @@ async function writeInstalledModManifest(serverId, entries) {
   await writeJsonFile(modManifestFilePath(serverId), entries);
 }
 
+async function readBackupSchedule(serverId) {
+  return readJsonFile(backupScheduleFilePath(serverId), {
+    enabled: false,
+    cadence: "daily",
+    retention: 7,
+    nextRunAt: null
+  });
+}
+
+function advanceScheduleDate(fromDate, cadence) {
+  const next = new Date(fromDate);
+  if (cadence === "hourly") {
+    next.setHours(next.getHours() + 1, 0, 0, 0);
+    return next;
+  }
+  if (cadence === "weekly") {
+    next.setDate(next.getDate() + 7);
+    next.setHours(3, 0, 0, 0);
+    return next;
+  }
+  next.setDate(next.getDate() + 1);
+  next.setHours(3, 0, 0, 0);
+  return next;
+}
+
+function buildBackupSchedule(cadence, retention, enabled) {
+  const safeCadence = ["hourly", "daily", "weekly"].includes(cadence) ? cadence : "daily";
+  const safeRetention = Math.max(1, Math.min(60, Number(retention || 7)));
+  const active = Boolean(enabled);
+  return {
+    enabled: active,
+    cadence: safeCadence,
+    retention: safeRetention,
+    nextRunAt: active ? advanceScheduleDate(new Date(), safeCadence).toISOString() : null
+  };
+}
+
+async function updateBackupSchedule(serverId, schedule) {
+  const next = buildBackupSchedule(schedule.cadence, schedule.retention, schedule.enabled);
+  await writeJsonFile(backupScheduleFilePath(serverId), next);
+  await appendActivity(serverId, "backup", `${next.enabled ? "Enabled" : "Paused"} ${next.cadence} backups.`, {
+    cadence: next.cadence,
+    retention: next.retention,
+    enabled: next.enabled
+  });
+  return next;
+}
+
+async function pruneBackups(serverId, retention) {
+  const backups = await listBackups(serverId);
+  const extra = backups.slice(retention);
+  for (const backup of extra) {
+    await fs.rm(backup.path, { recursive: true, force: true });
+  }
+}
+
 async function readServerProperties(server) {
   const filePath = path.join(server.path, "server.properties");
   let content = "";
@@ -1068,7 +1156,7 @@ async function setPlayerWhitelist(serverId, playerName, enabled) {
   };
 }
 
-async function setPlayerBan(serverId, playerName, enabled) {
+async function setPlayerBan(serverId, playerName, enabled, reason = "") {
   const server = await readServerRecord(serverId);
   const name = String(playerName || "").trim();
   if (!PLAYER_NAME_PATTERN.test(name)) {
@@ -1091,14 +1179,16 @@ async function setPlayerBan(serverId, playerName, enabled) {
       created: new Date().toISOString(),
       source: "Resin",
       expires: "forever",
-      reason: "Banned from Resin"
+      reason: String(reason || "Banned from Resin").trim() || "Banned from Resin"
     });
   }
   await writeJsonFile(filePath, filtered);
 
   const runtime = SERVER_PROCESSES.get(serverId);
   if (runtime?.state === "running") {
-    const command = enabled ? `ban ${name}` : `pardon ${name}`;
+    const command = enabled
+      ? `ban ${name}${reason ? ` ${String(reason).trim()}` : ""}`
+      : `pardon ${name}`;
     runtime.logs.push({
       at: new Date().toISOString(),
       source: "stdin",
@@ -1113,6 +1203,35 @@ async function setPlayerBan(serverId, playerName, enabled) {
     action: enabled ? "ban" : "unban"
   });
 
+  return {
+    players: await listPlayersForServer(serverId)
+  };
+}
+
+async function kickPlayerFromServer(serverId, playerName, reason = "") {
+  const runtime = SERVER_PROCESSES.get(serverId);
+  if (!runtime || runtime.state !== "running") {
+    throw new Error("Start the server before kicking a player.");
+  }
+
+  const name = String(playerName || "").trim();
+  if (!PLAYER_NAME_PATTERN.test(name)) {
+    throw new Error("Choose a valid player name.");
+  }
+
+  const command = `kick ${name}${reason ? ` ${String(reason).trim()}` : ""}`;
+  runtime.logs.push({
+    at: new Date().toISOString(),
+    source: "stdin",
+    line: command
+  });
+  trimLogLines(runtime.logs);
+  runtime.child.stdin.write(`${command}\n`);
+  await appendActivity(serverId, "players", `Kicked ${name}.`, {
+    playerName: name,
+    action: "kick",
+    reason: String(reason || "").trim()
+  });
   return {
     players: await listPlayersForServer(serverId)
   };
@@ -1323,6 +1442,137 @@ async function buildServerOverview(serverId, server, players, mods, backups, act
     port: Number(properties["server-port"] || server.port || 25565),
     onlineMode: boolFromProperty(properties["online-mode"], Boolean(server.onlineMode))
   };
+}
+
+function describeModWarnings(mods, latestModsActivity) {
+  const warnings = [];
+  const duplicateTitles = Array.from(
+    mods.reduce((map, mod) => {
+      const key = mod.title || mod.filename;
+      map.set(key, (map.get(key) || 0) + 1);
+      return map;
+    }, new Map()).entries()
+  ).filter(([, count]) => count > 1);
+
+  for (const [title, count] of duplicateTitles) {
+    warnings.push({
+      level: "warning",
+      label: "Duplicate mod files",
+      message: `${title} appears ${count} times in the mods folder.`
+    });
+  }
+
+  for (const item of latestModsActivity?.detail?.unresolved || []) {
+    warnings.push({
+      level: "warning",
+      label: "Dependency follow-up",
+      message: `${item.requiredBy || "A selected mod"} still needs ${item.projectId || "an external dependency"}: ${item.reason}`
+    });
+  }
+
+  return warnings;
+}
+
+async function checkPortAvailability(port, ignoreRunningServerId = "") {
+  const conflict = Array.from(SERVER_PROCESSES.entries()).find(([serverId, runtime]) => serverId !== ignoreRunningServerId && runtime.state === "running");
+  if (conflict) {
+    const runningServer = await readServerRecord(conflict[0]).catch(() => null);
+    if (runningServer?.port === port) {
+      return {
+        available: false,
+        message: `${runningServer.name} is already using port ${port}.`
+      };
+    }
+  }
+
+  return new Promise((resolve) => {
+    const probe = net.createServer();
+    probe.once("error", () => resolve({
+      available: false,
+      message: `Another process is already listening on port ${port}.`
+    }));
+    probe.once("listening", () => {
+      probe.close(() => resolve({
+        available: true,
+        message: `Port ${port} is currently free.`
+      }));
+    });
+    probe.listen(port, "127.0.0.1");
+  });
+}
+
+async function buildServerHealth(serverId) {
+  const server = await readServerRecord(serverId);
+  const properties = await readServerProperties(server);
+  const readiness = await evaluateServerReadiness(server);
+  const mods = await listInstalledMods(serverId);
+  const activity = await readActivity(serverId);
+  const portCheck = await checkPortAvailability(Number(properties["server-port"] || server.port || 25565), serverId);
+  const latestModsActivity = [...activity].reverse().find((entry) => entry.type === "mods") || null;
+  const warnings = describeModWarnings(mods, latestModsActivity);
+  const eulaAccepted = boolFromProperty((await fs.readFile(path.join(server.path, "eula.txt"), "utf8").catch(() => "eula=false")).split("=")[1], false);
+  const checks = [
+    ...readiness.checks,
+    {
+      level: eulaAccepted ? "ok" : "error",
+      ok: eulaAccepted,
+      label: "EULA",
+      message: eulaAccepted ? "The Mojang EULA is already accepted." : "Accept the EULA before the server can complete startup."
+    },
+    {
+      level: server.javaRuntime?.major === resolveJavaRuntimeForMinecraft(server.minecraftVersion).preferredMajor || server.javaOverrideMajor ? "ok" : "warning",
+      ok: true,
+      label: "Java profile",
+      message: server.javaOverrideMajor
+        ? `This server is pinned to Java ${server.javaRuntime?.major || server.javaOverrideMajor}.`
+        : server.javaRuntime?.reason || "Resin is using automatic Java selection."
+    },
+    {
+      level: portCheck.available ? "ok" : "warning",
+      ok: portCheck.available,
+      label: "Port availability",
+      message: portCheck.message
+    },
+    ...warnings
+  ];
+
+  return {
+    summary: checks.some((check) => check.level === "error")
+      ? "Blocked"
+      : checks.some((check) => check.level === "warning")
+        ? "Needs review"
+        : "Healthy",
+    checks
+  };
+}
+
+async function updateRuntimeProfile(serverId, updates) {
+  const recordPath = path.join(SERVERS_DIR, serverId, "resin-server.json");
+  const server = await readServerRecord(serverId);
+  const next = {
+    ...server,
+    memoryMb: Math.max(1024, Number(updates.memoryMb || server.memoryMb || 4096)),
+    extraJvmArgs: String(updates.extraJvmArgs ?? server.extraJvmArgs ?? "").trim()
+  };
+
+  const selectedJava = updates.javaOverrideMajor
+    ? INSTALLED_JAVA_RUNTIMES.find((runtime) => runtime.major === Number(updates.javaOverrideMajor))
+    : null;
+  next.javaOverrideMajor = selectedJava?.major || null;
+  next.javaRuntime = selectedJava || resolveJavaRuntimeForMinecraft(server.minecraftVersion);
+
+  await Promise.all([
+    fs.writeFile(path.join(server.path, "start.sh"), renderStartSh(next), { encoding: "utf8", mode: 0o755 }),
+    fs.writeFile(path.join(server.path, "start.cmd"), renderStartCmd(next), "utf8"),
+    fs.writeFile(path.join(server.path, "README.txt"), renderReadme(next, "Runtime profile updated from Resin."), "utf8"),
+    fs.writeFile(recordPath, JSON.stringify(next, null, 2), "utf8")
+  ]);
+  await appendActivity(serverId, "runtime", "Updated runtime profile.", {
+    memoryMb: next.memoryMb,
+    javaOverrideMajor: next.javaOverrideMajor,
+    extraJvmArgs: next.extraJvmArgs
+  });
+  return readServerDetail(serverId);
 }
 
 async function fetchProjectDetails(projectId, cache) {
@@ -1576,6 +1826,50 @@ async function installModForServer(serverId, projectId) {
   return installModsForServer(serverId, [projectId]);
 }
 
+async function removeModFromServer(serverId, filename) {
+  const server = await readServerRecord(serverId);
+  const target = serverAbsolutePath(server, path.posix.join("mods", filename));
+  await fs.rm(target.absolute, { force: true });
+  const manifest = (await readInstalledModManifest(serverId)).filter((entry) => entry.filename !== filename);
+  await writeInstalledModManifest(serverId, manifest);
+  await appendActivity(serverId, "mods", `Removed ${filename}.`, {
+    filename,
+    action: "remove"
+  });
+  return {
+    mods: await listInstalledMods(serverId)
+  };
+}
+
+async function getModUpdateSummary(serverId) {
+  const server = await readServerRecord(serverId);
+  const installed = await readInstalledModManifest(serverId);
+  const versionCache = new Map();
+  const updates = [];
+
+  // Compare installed manifest entries against the latest compatible Modrinth version so update checks stay consistent with install resolution.
+  for (const mod of installed.filter((entry) => entry.projectId)) {
+    try {
+      const latest = await fetchCompatibleProjectVersion(server, mod.projectId, versionCache);
+      if (latest.version_number !== mod.versionNumber) {
+        updates.push({
+          projectId: mod.projectId,
+          title: mod.title || mod.filename,
+          filename: mod.filename,
+          currentVersion: mod.versionNumber,
+          latestVersion: latest.version_number
+        });
+      }
+    } catch {
+      // Mods missing from the upstream catalog can still remain installed locally.
+    }
+  }
+
+  return {
+    updates
+  };
+}
+
 function getStartCommand(serverDir) {
   if (process.platform === "win32") {
     return {
@@ -1596,9 +1890,14 @@ async function readServerRecord(serverId) {
   const serverDir = path.join(SERVERS_DIR, serverId);
   const content = await fs.readFile(path.join(serverDir, "resin-server.json"), "utf8");
   const parsed = JSON.parse(content);
+  if (parsed.javaOverrideMajor) {
+    parsed.javaRuntime = INSTALLED_JAVA_RUNTIMES.find((runtime) => runtime.major === Number(parsed.javaOverrideMajor)) || parsed.javaRuntime;
+  }
   if (!parsed.javaRuntime) {
     parsed.javaRuntime = resolveJavaRuntimeForMinecraft(parsed.minecraftVersion);
   }
+  parsed.extraJvmArgs = String(parsed.extraJvmArgs || "").trim();
+  parsed.installerVersion = String(parsed.installerVersion || "").trim();
   return {
     ...parsed,
     path: serverDir
@@ -1624,6 +1923,212 @@ async function deleteServer(serverId) {
   };
 }
 
+async function listServerFiles(serverId, relativePath = "") {
+  const server = await readServerRecord(serverId);
+  const { normalized, absolute } = serverAbsolutePath(server, relativePath);
+  const entries = await fs.readdir(absolute, { withFileTypes: true });
+  const items = [];
+  for (const entry of entries) {
+    const childRelative = normalizeServerRelativePath(path.posix.join(normalized, entry.name));
+    const childAbsolute = path.join(absolute, entry.name);
+    const stat = await fs.stat(childAbsolute);
+    items.push({
+      name: entry.name,
+      path: childRelative,
+      type: entry.isDirectory() ? "directory" : "file",
+      size: stat.size,
+      modifiedAt: stat.mtime.toISOString(),
+      textEditable: entry.isFile() ? isTextLikePath(entry.name) : false
+    });
+  }
+
+  return {
+    path: normalized,
+    parentPath: normalized ? normalizeServerRelativePath(path.posix.dirname(normalized)) : "",
+    items: items.sort((left, right) => left.type.localeCompare(right.type) || left.name.localeCompare(right.name))
+  };
+}
+
+async function readServerTextFile(serverId, relativePath) {
+  const server = await readServerRecord(serverId);
+  const { normalized, absolute } = serverAbsolutePath(server, relativePath);
+  const stat = await fs.stat(absolute);
+  if (!stat.isFile()) {
+    throw new Error("Choose a file to open.");
+  }
+  if (!isTextLikePath(absolute) || stat.size > 1024 * 1024 * 2) {
+    throw new Error("This file is not available in Resin's text editor.");
+  }
+  return {
+    path: normalized,
+    content: await fs.readFile(absolute, "utf8")
+  };
+}
+
+async function writeServerTextFile(serverId, relativePath, content) {
+  const server = await readServerRecord(serverId);
+  const { normalized, absolute } = serverAbsolutePath(server, relativePath);
+  await fs.writeFile(absolute, String(content ?? ""), "utf8");
+  await appendActivity(serverId, "files", `Saved ${normalized}.`, {
+    path: normalized,
+    action: "save"
+  });
+  return readServerTextFile(serverId, normalized);
+}
+
+async function createServerFolder(serverId, relativePath) {
+  const server = await readServerRecord(serverId);
+  const { normalized, absolute } = serverAbsolutePath(server, relativePath);
+  await fs.mkdir(absolute, { recursive: true });
+  await appendActivity(serverId, "files", `Created folder ${normalized || "/"}.`, {
+    path: normalized,
+    action: "mkdir"
+  });
+  return listServerFiles(serverId, path.posix.dirname(normalized));
+}
+
+async function renameServerPath(serverId, relativePath, nextName) {
+  const server = await readServerRecord(serverId);
+  const name = sanitizeName(nextName).replace(/\s+/g, "-");
+  if (!name) {
+    throw new Error("Choose a valid new name.");
+  }
+  const source = serverAbsolutePath(server, relativePath);
+  const targetRelative = normalizeServerRelativePath(path.posix.join(path.posix.dirname(source.normalized), name));
+  const target = serverAbsolutePath(server, targetRelative);
+  await fs.rename(source.absolute, target.absolute);
+  await appendActivity(serverId, "files", `Renamed ${source.normalized} to ${targetRelative}.`, {
+    from: source.normalized,
+    to: targetRelative,
+    action: "rename"
+  });
+  return listServerFiles(serverId, path.posix.dirname(targetRelative));
+}
+
+async function deleteServerPath(serverId, relativePath) {
+  const server = await readServerRecord(serverId);
+  const { normalized, absolute } = serverAbsolutePath(server, relativePath);
+  await fs.rm(absolute, { recursive: true, force: true });
+  await appendActivity(serverId, "files", `Deleted ${normalized}.`, {
+    path: normalized,
+    action: "delete"
+  });
+  return listServerFiles(serverId, path.posix.dirname(normalized));
+}
+
+async function uploadServerFile(serverId, relativeDir, filename, contentBase64) {
+  const server = await readServerRecord(serverId);
+  const safeFilename = String(filename || "").trim();
+  if (!safeFilename) {
+    throw new Error("A filename is required.");
+  }
+  const targetRelative = normalizeServerRelativePath(path.posix.join(relativeDir || "", safeFilename));
+  const { absolute } = serverAbsolutePath(server, targetRelative);
+  await fs.mkdir(path.dirname(absolute), { recursive: true });
+  await fs.writeFile(absolute, Buffer.from(String(contentBase64 || ""), "base64"));
+  await appendActivity(serverId, "files", `Uploaded ${targetRelative}.`, {
+    path: targetRelative,
+    action: "upload"
+  });
+  return listServerFiles(serverId, path.posix.dirname(targetRelative));
+}
+
+function buildTemplatePayloadFromServer(server, properties = {}) {
+  return {
+    loader: server.loader,
+    minecraftVersion: server.minecraftVersion,
+    loaderVersion: server.loaderVersion || "",
+    build: server.build || "",
+    installerVersion: server.installerVersion || "",
+    memoryMb: server.memoryMb || 4096,
+    motd: properties.motd || server.motd || server.name,
+    onlineMode: boolFromProperty(properties["online-mode"], Boolean(server.onlineMode)),
+    port: Number(properties["server-port"] || server.port || 25565),
+    extraJvmArgs: server.extraJvmArgs || "",
+    javaOverrideMajor: server.javaOverrideMajor || null,
+    properties
+  };
+}
+
+async function listTemplates() {
+  await fs.mkdir(TEMPLATES_DIR, { recursive: true });
+  const entries = await fs.readdir(TEMPLATES_DIR, { withFileTypes: true });
+  const templates = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith(".json")) {
+      continue;
+    }
+    const payload = await readJsonFile(path.join(TEMPLATES_DIR, entry.name), null);
+    if (!payload) {
+      continue;
+    }
+    templates.push(payload);
+  }
+  return templates.sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
+}
+
+async function saveTemplateFromServer(serverId, templateName) {
+  const server = await readServerRecord(serverId);
+  const properties = await readServerProperties(server);
+  const name = sanitizeName(templateName || `${server.name} Template`);
+  const template = {
+    id: slugify(name),
+    name,
+    createdAt: new Date().toISOString(),
+    sourceServerId: serverId,
+    profile: buildTemplatePayloadFromServer(server, properties)
+  };
+  await fs.mkdir(TEMPLATES_DIR, { recursive: true });
+  await fs.writeFile(templateFilePath(template.id), JSON.stringify(template, null, 2), "utf8");
+  return template;
+}
+
+async function deleteTemplate(templateId) {
+  await fs.rm(templateFilePath(templateId), { force: true });
+  return { deleted: true, templateId };
+}
+
+async function cloneServer(serverId, options = {}) {
+  const source = await readServerRecord(serverId);
+  const properties = await readServerProperties(source);
+  const created = await createServer({
+    name: options.name || `${source.name} Copy`,
+    loader: source.loader,
+    minecraftVersion: source.minecraftVersion,
+    loaderVersion: source.loaderVersion,
+    build: source.build,
+    installerVersion: source.installerVersion,
+    memoryMb: options.memoryMb || source.memoryMb,
+    motd: options.motd || properties.motd || `${source.name} Copy`,
+    onlineMode: boolFromProperty(properties["online-mode"], Boolean(source.onlineMode)),
+    acceptEula: true,
+    port: options.port || (Number(properties["server-port"] || source.port || 25565) + 1),
+    extraJvmArgs: source.extraJvmArgs || "",
+    javaOverrideMajor: source.javaOverrideMajor || null
+  });
+
+  const createdServer = await readServerRecord(created.id);
+  // Clone configuration and the mod set, but intentionally avoid copying live world data into a fresh provisioned server.
+  await updateServerProperties(created.id, { rawContent: await readServerPropertiesRaw(source) });
+  let modEntries = [];
+  try {
+    modEntries = await fs.readdir(path.join(source.path, "mods"), { withFileTypes: true });
+  } catch {
+    modEntries = [];
+  }
+  for (const entry of modEntries) {
+    if (!entry.isFile()) {
+      continue;
+    }
+    await fs.copyFile(path.join(source.path, "mods", entry.name), path.join(createdServer.path, "mods", entry.name));
+  }
+  const sourceManifest = await readInstalledModManifest(serverId);
+  if (sourceManifest.length) {
+    await writeInstalledModManifest(created.id, sourceManifest);
+  }
+  return readServerDetail(created.id);
+}
+
 async function readServerDetail(serverId) {
   const server = await readServerRecord(serverId);
   let readme = "";
@@ -1634,14 +2139,16 @@ async function readServerDetail(serverId) {
   }
 
   const runtime = getRuntimeSummary(serverId);
-  const [players, mods, activity, backups, properties, propertiesRaw, readiness] = await Promise.all([
+  const [players, mods, activity, backups, properties, propertiesRaw, readiness, backupSchedule, health] = await Promise.all([
     listPlayersForServer(serverId),
     listInstalledMods(serverId),
     readActivity(serverId).then((entries) => entries.sort((a, b) => new Date(b.at) - new Date(a.at))),
     listBackups(serverId),
     readServerProperties(server),
     readServerPropertiesRaw(server),
-    evaluateServerReadiness(server)
+    evaluateServerReadiness(server),
+    readBackupSchedule(serverId),
+    buildServerHealth(serverId)
   ]);
   return {
     ...server,
@@ -1653,8 +2160,10 @@ async function readServerDetail(serverId) {
     propertiesRaw,
     activity,
     backups,
+    backupSchedule,
     players,
     mods,
+    health,
     overview: await buildServerOverview(serverId, server, players, mods, backups, activity, readiness, properties),
     readme
   };
@@ -1812,27 +2321,29 @@ function renderStartSh(server) {
   const forgeArgs = server.loader === "forge" && server.loaderVersion ? `libraries/net/minecraftforge/forge/${server.loaderVersion}/unix_args.txt` : "";
   const neoArgs = server.loader === "neoforge" && server.loaderVersion ? `libraries/net/neoforged/neoforge/${server.loaderVersion}/unix_args.txt` : "";
   const javaBin = server.javaRuntime?.javaBin || "java";
+  const extraJvmArgs = String(server.extraJvmArgs || "").trim();
   return `#!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
 JAVA_BIN="\${JAVA_BIN:-${javaBin}}"
+EXTRA_JVM_ARGS="${extraJvmArgs.replace(/"/g, '\\"')}"
 
 if [ -f "server.jar" ]; then
-  exec "$JAVA_BIN" -Xms${mem} -Xmx${mem} -jar server.jar nogui
+  exec "$JAVA_BIN" -Xms${mem} -Xmx${mem} $EXTRA_JVM_ARGS -jar server.jar nogui
 fi
 
 ${forgeArgs ? `if [ -f "${forgeArgs}" ]; then
-  exec "$JAVA_BIN" -Xms${mem} -Xmx${mem} @${forgeArgs} nogui
+  exec "$JAVA_BIN" -Xms${mem} -Xmx${mem} $EXTRA_JVM_ARGS @${forgeArgs} nogui
 fi
 ` : ""}
 
 ${neoArgs ? `if [ -f "${neoArgs}" ]; then
-  exec "$JAVA_BIN" -Xms${mem} -Xmx${mem} @${neoArgs} nogui
+  exec "$JAVA_BIN" -Xms${mem} -Xmx${mem} $EXTRA_JVM_ARGS @${neoArgs} nogui
 fi
 ` : ""}
 
 if [ -f "quilt-server-launch.jar" ]; then
-  exec "$JAVA_BIN" -Xms${mem} -Xmx${mem} -jar quilt-server-launch.jar nogui
+  exec "$JAVA_BIN" -Xms${mem} -Xmx${mem} $EXTRA_JVM_ARGS -jar quilt-server-launch.jar nogui
 fi
 
 printf "Server runtime is not ready yet. Run the generated installer first.\\n"
@@ -1843,17 +2354,19 @@ exit 1
 function renderStartCmd(server) {
   const mem = `${server.memoryMb}M`;
   const javaBin = server.javaRuntime?.javaBin || "java";
+  const extraJvmArgs = String(server.extraJvmArgs || "").trim();
   return `@echo off
 cd /d "%~dp0"
 set "JAVA_BIN=${javaBin}"
+set "EXTRA_JVM_ARGS=${extraJvmArgs}"
 
 if exist server.jar (
-  "%JAVA_BIN%" -Xms${mem} -Xmx${mem} -jar server.jar nogui
+  "%JAVA_BIN%" -Xms${mem} -Xmx${mem} %EXTRA_JVM_ARGS% -jar server.jar nogui
   goto :eof
 )
 
 if exist quilt-server-launch.jar (
-  "%JAVA_BIN%" -Xms${mem} -Xmx${mem} -jar quilt-server-launch.jar nogui
+  "%JAVA_BIN%" -Xms${mem} -Xmx${mem} %EXTRA_JVM_ARGS% -jar quilt-server-launch.jar nogui
   goto :eof
 )
 
@@ -1954,18 +2467,25 @@ async function createServer(payload) {
     throw new Error("Minecraft version is required.");
   }
 
+  const javaOverrideMajor = payload.javaOverrideMajor ? Number(payload.javaOverrideMajor) : null;
+  const resolvedJava = javaOverrideMajor
+    ? INSTALLED_JAVA_RUNTIMES.find((runtime) => runtime.major === javaOverrideMajor)
+    : null;
   const server = {
     id: slugify(name),
     name,
     loader,
     minecraftVersion,
     loaderVersion: String(payload.loaderVersion || "").trim(),
+    installerVersion: String(payload.installerVersion || "").trim(),
     build: String(payload.build || "").trim(),
     memoryMb: Math.max(1024, Number(payload.memoryMb || 4096)),
     motd: sanitizeName(payload.motd || name) || name,
     onlineMode: Boolean(payload.onlineMode),
     port: Math.max(1024, Number(payload.port || 25565)),
-    javaRuntime: resolveJavaRuntimeForMinecraft(minecraftVersion),
+    javaOverrideMajor: resolvedJava?.major || null,
+    javaRuntime: resolvedJava || resolveJavaRuntimeForMinecraft(minecraftVersion),
+    extraJvmArgs: String(payload.extraJvmArgs || "").trim(),
     createdAt: new Date().toISOString()
   };
 
@@ -1990,7 +2510,7 @@ async function createServer(payload) {
     status = "ready";
     summary = "Official Mojang server jar selected and downloaded.";
   } else if (loader === "fabric") {
-    const installerVersion = String(payload.installerVersion || "").trim();
+    const installerVersion = server.installerVersion;
     if (!server.loaderVersion || !installerVersion) {
       throw new Error("Fabric requires both a loader version and installer version.");
     }
@@ -2012,7 +2532,7 @@ async function createServer(payload) {
     artifactUrl = `https://maven.neoforged.net/releases/net/neoforged/neoforge/${server.loaderVersion}/${installerFile}`;
     summary = "NeoForge installer prepared. Run install.sh, then start.sh.";
   } else if (loader === "quilt") {
-    const installerVersion = String(payload.installerVersion || "").trim();
+    const installerVersion = server.installerVersion;
     if (!installerVersion || !server.loaderVersion) {
       throw new Error("Quilt requires both a loader version and installer version.");
     }
@@ -2087,6 +2607,33 @@ async function listServers() {
   return servers.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
+async function runScheduledBackups() {
+  const servers = await listServers();
+  for (const server of servers) {
+    const schedule = await readBackupSchedule(server.id);
+    if (!schedule.enabled || !schedule.nextRunAt) {
+      continue;
+    }
+    if (new Date(schedule.nextRunAt).getTime() > Date.now()) {
+      continue;
+    }
+
+    try {
+      await createBackup(server.id, `Scheduled ${schedule.cadence} backup`);
+      await pruneBackups(server.id, schedule.retention);
+      const nextSchedule = {
+        ...schedule,
+        nextRunAt: advanceScheduleDate(new Date(), schedule.cadence).toISOString()
+      };
+      await writeJsonFile(backupScheduleFilePath(server.id), nextSchedule);
+    } catch (error) {
+      await appendActivity(server.id, "backup", "Scheduled backup failed.", {
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+}
+
 async function serveStatic(req, res) {
   const requestPath = req.url === "/" ? "/index.html" : req.url;
   const filePath = path.normalize(path.join(PUBLIC_DIR, requestPath));
@@ -2135,6 +2682,19 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, {
         runtimes: INSTALLED_JAVA_RUNTIMES
       });
+    }
+
+    if (requestUrl.pathname === "/api/templates") {
+      if (req.method === "GET") {
+        return json(res, 200, {
+          templates: await listTemplates()
+        });
+      }
+
+      if (req.method === "DELETE") {
+        const templateId = requestUrl.searchParams.get("id");
+        return json(res, 200, await deleteTemplate(templateId));
+      }
     }
 
     if (req.method === "GET" && requestUrl.pathname.startsWith("/api/loaders/")) {
@@ -2191,6 +2751,56 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, await sendServerCommand(serverId, payload.command));
       }
 
+      if (req.method === "GET" && action === "health") {
+        return json(res, 200, await buildServerHealth(serverId));
+      }
+
+      if (req.method === "POST" && action === "clone") {
+        const payload = await readBody(req);
+        return json(res, 200, await cloneServer(serverId, payload));
+      }
+
+      if (action === "files") {
+        const relativePath = requestUrl.searchParams.get("path") || "";
+        if (req.method === "GET" && requestUrl.searchParams.get("download") === "1") {
+          const serverRecord = await readServerRecord(serverId);
+          const target = serverAbsolutePath(serverRecord, relativePath);
+          res.writeHead(200, {
+            "Content-Type": "application/octet-stream",
+            "Content-Disposition": `attachment; filename="${path.basename(target.absolute)}"`
+          });
+          createReadStream(target.absolute).pipe(res);
+          return;
+        }
+
+        if (req.method === "GET" && requestUrl.searchParams.get("open") === "1") {
+          return json(res, 200, await readServerTextFile(serverId, relativePath));
+        }
+
+        if (req.method === "GET") {
+          return json(res, 200, await listServerFiles(serverId, relativePath));
+        }
+
+        if (req.method === "POST") {
+          const payload = await readBody(req);
+          if (payload.action === "save") {
+            return json(res, 200, await writeServerTextFile(serverId, payload.path, payload.content));
+          }
+          if (payload.action === "mkdir") {
+            return json(res, 200, await createServerFolder(serverId, payload.path));
+          }
+          if (payload.action === "rename") {
+            return json(res, 200, await renameServerPath(serverId, payload.path, payload.nextName));
+          }
+          if (payload.action === "delete") {
+            return json(res, 200, await deleteServerPath(serverId, payload.path));
+          }
+          if (payload.action === "upload") {
+            return json(res, 200, await uploadServerFile(serverId, payload.directory, payload.filename, payload.contentBase64));
+          }
+        }
+      }
+
       if (req.method === "GET" && action === "players") {
         return json(res, 200, {
           players: await listPlayersForServer(serverId)
@@ -2214,7 +2824,17 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === "POST" && action === "ban") {
         const payload = await readBody(req);
-        return json(res, 200, await setPlayerBan(serverId, payload.playerName, Boolean(payload.enabled)));
+        return json(res, 200, await setPlayerBan(serverId, payload.playerName, Boolean(payload.enabled), payload.reason));
+      }
+
+      if (req.method === "POST" && action === "pardon") {
+        const payload = await readBody(req);
+        return json(res, 200, await setPlayerBan(serverId, payload.playerName, false, ""));
+      }
+
+      if (req.method === "POST" && action === "kick") {
+        const payload = await readBody(req);
+        return json(res, 200, await kickPlayerFromServer(serverId, payload.playerName, payload.reason));
       }
 
       if (req.method === "POST" && action === "settings") {
@@ -2223,9 +2843,23 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, await updateServerProperties(serverId, payload.properties || {}));
       }
 
+      if (req.method === "POST" && action === "runtime") {
+        const payload = await readBody(req);
+        return json(res, 200, await updateRuntimeProfile(serverId, payload));
+      }
+
       if (req.method === "POST" && action === "backups") {
         const payload = await readBody(req);
         return json(res, 200, await createBackup(serverId, payload.note));
+      }
+
+      if (req.method === "GET" && action === "backup-schedule") {
+        return json(res, 200, await readBackupSchedule(serverId));
+      }
+
+      if (req.method === "POST" && action === "backup-schedule") {
+        const payload = await readBody(req);
+        return json(res, 200, await updateBackupSchedule(serverId, payload));
       }
 
       if (req.method === "POST" && action === "restore-backup") {
@@ -2247,6 +2881,20 @@ const server = http.createServer(async (req, res) => {
         const payload = await readBody(req);
         return json(res, 200, await installModsForServer(serverId, payload.projectIds || payload.projectId));
       }
+
+      if (req.method === "GET" && action === "mod-updates") {
+        return json(res, 200, await getModUpdateSummary(serverId));
+      }
+
+      if (req.method === "POST" && action === "mod-remove") {
+        const payload = await readBody(req);
+        return json(res, 200, await removeModFromServer(serverId, payload.filename));
+      }
+
+      if (req.method === "POST" && action === "templates") {
+        const payload = await readBody(req);
+        return json(res, 200, await saveTemplateFromServer(serverId, payload.name));
+      }
     }
 
     return serveStatic(req, res);
@@ -2260,6 +2908,12 @@ const server = http.createServer(async (req, res) => {
 async function bootstrap() {
   await fs.mkdir(SERVERS_DIR, { recursive: true });
   await fs.mkdir(BACKUPS_DIR, { recursive: true });
+  await fs.mkdir(TEMPLATES_DIR, { recursive: true });
+  setInterval(() => {
+    runScheduledBackups().catch((error) => {
+      console.error("Scheduled backup loop failed:", error);
+    });
+  }, 60_000).unref();
   server.listen(PORT, () => {
     console.log(`Resin UI running on http://localhost:${PORT}`);
   });

@@ -398,7 +398,9 @@ body {
 
 .workspace-grid-manage,
 .workspace-grid-mods,
+.workspace-grid-files,
 .workspace-grid-players,
+.workspace-grid-health,
 .workspace-grid-settings,
 .workspace-grid-backups {
   grid-template-columns: minmax(0, 1fr) 18rem;
@@ -615,6 +617,10 @@ body {
   gap: 1rem;
 }
 
+.field-full {
+  grid-column: 1 / -1;
+}
+
 .field-grid-basics {
   grid-template-columns: 1.1fr 1fr;
 }
@@ -689,13 +695,20 @@ button:disabled {
 
 .toggle-row,
 .action-row,
-.mods-search-row {
+.mods-search-row,
+.backup-schedule-grid,
+.row-action-wrap {
   display: flex;
   align-items: center;
   gap: 0.85rem;
 }
 
 .toggle-row {
+  flex-wrap: wrap;
+}
+
+.backup-schedule-grid,
+.row-action-wrap {
   flex-wrap: wrap;
 }
 
@@ -769,6 +782,13 @@ button[type="submit"] {
 .secondary-button {
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid var(--border);
+}
+
+.anchor-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .secondary-button.active {
@@ -946,6 +966,10 @@ button[type="submit"]:hover,
 .players-list {
   display: grid;
   gap: 0.9rem;
+}
+
+#fileEditor {
+  min-height: 24rem;
 }
 
 .stat-grid,
@@ -1186,7 +1210,9 @@ button[type="submit"]:hover,
   .workspace-grid-create,
   .workspace-grid-manage,
   .workspace-grid-mods,
+  .workspace-grid-files,
   .workspace-grid-players,
+  .workspace-grid-health,
   .workspace-grid-settings,
   .workspace-grid-backups {
     grid-template-columns: 1fr;

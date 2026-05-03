@@ -8,17 +8,21 @@ const state = {
   variantKey: "",
   variantOptions: [],
   servers: [],
+  templates: [],
   selectedServerId: "",
   selectedServer: null,
   detailTimer: null,
   activeMenu: "inventory",
   modSearchResults: [],
   selectedModProjectIds: [],
+  modUpdates: [],
   consoleFilter: "all",
   inventoryFilter: "all",
   inventorySearch: "",
   playersSearch: "",
   theme: localStorage.getItem("resinTheme") || "midnight",
+  fileBrowserPath: "",
+  openFilePath: "",
   commandHistory: JSON.parse(localStorage.getItem("resinCommandHistory") || "[]"),
   commandHistoryIndex: -1
 };
@@ -31,11 +35,17 @@ const minecraftVersion = document.getElementById("minecraftVersion");
 const variantField = document.getElementById("variantField");
 const variantLabel = document.getElementById("variantLabel");
 const variantSelect = document.getElementById("variantSelect");
+const templateSelect = document.getElementById("templateSelect");
+const templateNameInput = document.getElementById("templateNameInput");
+const saveTemplateButton = document.getElementById("saveTemplateButton");
+const templateList = document.getElementById("templateList");
 const statusText = document.getElementById("statusText");
 const submitButton = document.getElementById("submitButton");
 const javaRuntimeList = document.getElementById("javaRuntimeList");
 const javaPolicy = document.getElementById("javaPolicy");
 const createInsightList = document.getElementById("createInsightList");
+const createJavaOverride = document.getElementById("createJavaOverride");
+const createExtraJvmArgs = document.getElementById("createExtraJvmArgs");
 const serverList = document.getElementById("serverList");
 const activeServerDisplay = document.getElementById("activeServerDisplay");
 const activeServerMeta = document.getElementById("activeServerMeta");
@@ -53,7 +63,9 @@ const menuButtons = {
   create: document.getElementById("menuCreate"),
   inventory: document.getElementById("menuInventory"),
   overview: document.getElementById("menuOverview"),
+  health: document.getElementById("menuHealth"),
   manage: document.getElementById("menuManage"),
+  files: document.getElementById("menuFiles"),
   players: document.getElementById("menuPlayers"),
   settings: document.getElementById("menuSettings"),
   backups: document.getElementById("menuBackups"),
@@ -65,7 +77,9 @@ const panels = {
   create: document.getElementById("panelCreate"),
   inventory: document.getElementById("panelInventory"),
   overview: document.getElementById("panelOverview"),
+  health: document.getElementById("panelHealth"),
   manage: document.getElementById("panelManage"),
+  files: document.getElementById("panelFiles"),
   players: document.getElementById("panelPlayers"),
   settings: document.getElementById("panelSettings"),
   backups: document.getElementById("panelBackups"),
@@ -89,6 +103,12 @@ const overviewStopButton = document.getElementById("overviewStopButton");
 const overviewConsoleButton = document.getElementById("overviewConsoleButton");
 const overviewPlayersButton = document.getElementById("overviewPlayersButton");
 const overviewSettingsButton = document.getElementById("overviewSettingsButton");
+const healthTitle = document.getElementById("healthTitle");
+const healthRuntime = document.getElementById("healthRuntime");
+const healthEmpty = document.getElementById("healthEmpty");
+const healthPanel = document.getElementById("healthPanel");
+const healthSummary = document.getElementById("healthSummary");
+const healthChecks = document.getElementById("healthChecks");
 
 const managerTitle = document.getElementById("managerTitle");
 const managerRuntime = document.getElementById("managerRuntime");
@@ -116,6 +136,7 @@ const playersPanel = document.getElementById("playersPanel");
 const playersHint = document.getElementById("playersHint");
 const playersList = document.getElementById("playersList");
 const playersSearch = document.getElementById("playersSearch");
+const playerReasonInput = document.getElementById("playerReasonInput");
 const playersServerName = document.getElementById("playersServerName");
 const playersLoader = document.getElementById("playersLoader");
 const playersVersion = document.getElementById("playersVersion");
@@ -129,6 +150,10 @@ const settingsStatus = document.getElementById("settingsStatus");
 const saveSettingsButton = document.getElementById("saveSettingsButton");
 const settingsRawEditor = document.getElementById("settingsRawEditor");
 const saveRawSettingsButton = document.getElementById("saveRawSettingsButton");
+const runtimeMemoryMb = document.getElementById("runtimeMemoryMb");
+const runtimeJavaOverride = document.getElementById("runtimeJavaOverride");
+const runtimeExtraJvmArgs = document.getElementById("runtimeExtraJvmArgs");
+const saveRuntimeButton = document.getElementById("saveRuntimeButton");
 
 const backupsTitle = document.getElementById("backupsTitle");
 const backupsRuntime = document.getElementById("backupsRuntime");
@@ -137,6 +162,11 @@ const backupsPanel = document.getElementById("backupsPanel");
 const backupNoteInput = document.getElementById("backupNoteInput");
 const createBackupButton = document.getElementById("createBackupButton");
 const backupsList = document.getElementById("backupsList");
+const backupCadence = document.getElementById("backupCadence");
+const backupRetention = document.getElementById("backupRetention");
+const backupScheduleEnabled = document.getElementById("backupScheduleEnabled");
+const saveBackupScheduleButton = document.getElementById("saveBackupScheduleButton");
+const backupScheduleSummary = document.getElementById("backupScheduleSummary");
 
 const activityTitle = document.getElementById("activityTitle");
 const activityRuntime = document.getElementById("activityRuntime");
@@ -160,6 +190,22 @@ const modsSelectionSummary = document.getElementById("modsSelectionSummary");
 const modsSelectAllButton = document.getElementById("modsSelectAllButton");
 const modsClearSelectionButton = document.getElementById("modsClearSelectionButton");
 const modsDownloadSelectedButton = document.getElementById("modsDownloadSelectedButton");
+const modUpdateList = document.getElementById("modUpdateList");
+
+const filesTitle = document.getElementById("filesTitle");
+const filesRuntime = document.getElementById("filesRuntime");
+const filesEmpty = document.getElementById("filesEmpty");
+const filesPanel = document.getElementById("filesPanel");
+const filesPathLabel = document.getElementById("filesPathLabel");
+const filesUpButton = document.getElementById("filesUpButton");
+const newFolderInput = document.getElementById("newFolderInput");
+const createFolderButton = document.getElementById("createFolderButton");
+const uploadFileInput = document.getElementById("uploadFileInput");
+const fileList = document.getElementById("fileList");
+const fileEditorLabel = document.getElementById("fileEditorLabel");
+const fileEditor = document.getElementById("fileEditor");
+const saveFileButton = document.getElementById("saveFileButton");
+const downloadFileLink = document.getElementById("downloadFileLink");
 
 const settingFields = {
   motd: document.getElementById("settingMotd"),
@@ -275,6 +321,25 @@ function renderJavaRuntimes() {
       <span>${runtime.version} · ${runtime.name}</span>
     </div>
   `).join("");
+
+  const options = `<option value="">Auto select</option>${state.javaRuntimes.map((runtime) => `<option value="${runtime.major}">Java ${runtime.major} · ${runtime.version}</option>`).join("")}`;
+  createJavaOverride.innerHTML = options;
+  runtimeJavaOverride.innerHTML = options;
+}
+
+function renderTemplates() {
+  templateSelect.innerHTML = `<option value="">Start from scratch</option>${state.templates.map((template) => `<option value="${template.id}">${template.name}</option>`).join("")}`;
+  templateList.innerHTML = state.templates.length
+    ? state.templates.map((template) => `
+      <div class="list-row compact-row">
+        <div>
+          <strong>${template.name}</strong>
+          <div class="server-meta">${template.profile.loader} · ${template.profile.minecraftVersion}</div>
+        </div>
+        <button type="button" class="secondary-button template-delete-button" data-template-id="${template.id}">Delete</button>
+      </div>
+    `).join("")
+    : `<div class="empty-state">No saved templates yet.</div>`;
 }
 
 function updateJavaPolicy() {
@@ -367,6 +432,32 @@ async function loadVariants() {
   submitButton.disabled = !variantSelect.value;
 }
 
+async function applyTemplate(templateId) {
+  const template = state.templates.find((entry) => entry.id === templateId);
+  if (!template) {
+    return;
+  }
+
+  const profile = template.profile || {};
+  document.getElementById("name").value = "";
+  document.getElementById("motd").value = profile.motd || "";
+  document.getElementById("memoryMb").value = profile.memoryMb || 4096;
+  document.getElementById("port").value = profile.port || 25565;
+  document.getElementById("onlineMode").checked = profile.onlineMode !== false;
+  createJavaOverride.value = profile.javaOverrideMajor || "";
+  createExtraJvmArgs.value = profile.extraJvmArgs || "";
+
+  if (profile.loader) {
+    await selectLoader(profile.loader);
+  }
+  minecraftVersion.value = profile.minecraftVersion || minecraftVersion.value;
+  updateJavaPolicy();
+  await loadVariants();
+  if (state.variantKey && profile[state.variantKey]) {
+    variantSelect.value = profile[state.variantKey];
+  }
+}
+
 function renderServers() {
   const query = state.inventorySearch.trim().toLowerCase();
   const filteredServers = state.servers.filter((server) => {
@@ -410,6 +501,7 @@ function renderServers() {
           <strong>${server.name}</strong>
           <div class="server-row-actions">
             <span class="server-state">${server.runtimeState || server.status}</span>
+            <button type="button" class="secondary-button clone-server-button" data-server-id="${server.id}" data-server-name="${server.name}">Clone</button>
             <button type="button" class="secondary-button delete-server-button" data-server-id="${server.id}" data-server-name="${server.name}" ${deleteDisabled}>Delete</button>
           </div>
         </div>
@@ -559,6 +651,25 @@ function renderOverview(server, loaderName, isRunning) {
   `).join("") || `<div class="empty-state">No activity yet.</div>`;
 }
 
+function renderHealth(server, isRunning) {
+  healthTitle.textContent = `Health · ${server.name}`;
+  healthRuntime.textContent = isRunning ? "Live checks" : "Static checks";
+  healthEmpty.hidden = true;
+  healthPanel.hidden = false;
+  healthSummary.textContent = server.health?.summary === "Blocked"
+    ? "This server has at least one blocker that should be fixed before normal use."
+    : "Health checks combine startup readiness, Java profile, port availability, EULA state, and mod follow-up warnings.";
+  healthChecks.innerHTML = (server.health?.checks || []).map((check) => `
+    <div class="list-row">
+      <div>
+        <strong>${check.label}</strong>
+        <div class="server-meta">${check.message}</div>
+      </div>
+      <span class="runtime-badge ${check.level === "ok" ? "runtime-badge-green" : check.level === "warning" ? "runtime-badge-blue" : ""}">${check.level}</span>
+    </div>
+  `).join("") || `<div class="empty-state">No health checks yet.</div>`;
+}
+
 function renderPlayers(server, loaderName, isRunning) {
   playersTitle.textContent = `Players · ${server.name}`;
   playersRuntime.textContent = isRunning ? "Live" : "Known players";
@@ -605,9 +716,10 @@ function renderPlayers(server, loaderName, isRunning) {
         </div>
       </div>
       <div class="player-row-actions">
+        ${player.online ? `<button type="button" class="secondary-button player-action-button" data-action="kick" data-player-name="${player.name}">Kick</button>` : ""}
         <button type="button" class="secondary-button player-action-button" data-action="${player.op ? "deop" : "op"}" data-player-name="${player.name}">${player.op ? "Remove OP" : "Give OP"}</button>
         <button type="button" class="secondary-button player-action-button" data-action="whitelist" data-enabled="${player.whitelisted ? "false" : "true"}" data-player-name="${player.name}">${player.whitelisted ? "Remove Whitelist" : "Whitelist"}</button>
-        <button type="button" class="secondary-button player-action-button" data-action="ban" data-enabled="${player.banned ? "false" : "true"}" data-player-name="${player.name}">${player.banned ? "Unban" : "Ban"}</button>
+        <button type="button" class="secondary-button player-action-button" data-action="${player.banned ? "pardon" : "ban"}" data-enabled="${player.banned ? "false" : "true"}" data-player-name="${player.name}">${player.banned ? "Pardon" : "Ban"}</button>
       </div>
     </article>
   `).join("");
@@ -632,6 +744,9 @@ function renderSettings(server, isRunning) {
     }
   }
   settingsRawEditor.value = server.propertiesRaw || "";
+  runtimeMemoryMb.value = server.memoryMb || 4096;
+  runtimeJavaOverride.value = server.javaOverrideMajor || "";
+  runtimeExtraJvmArgs.value = server.extraJvmArgs || "";
   setSettingsStatus("Settings loaded from server.properties.");
 }
 
@@ -640,6 +755,12 @@ function renderBackups(server, isRunning) {
   backupsRuntime.textContent = isRunning ? "Live copy" : "Ready";
   backupsEmpty.hidden = true;
   backupsPanel.hidden = false;
+  backupCadence.value = server.backupSchedule?.cadence || "daily";
+  backupRetention.value = server.backupSchedule?.retention || 7;
+  backupScheduleEnabled.checked = Boolean(server.backupSchedule?.enabled);
+  backupScheduleSummary.textContent = server.backupSchedule?.enabled
+    ? `Next ${server.backupSchedule.cadence} backup: ${server.backupSchedule.nextRunAt ? formatTime(server.backupSchedule.nextRunAt) : "waiting"} · keep ${server.backupSchedule.retention}`
+    : "Scheduled backups are currently disabled.";
   backupsList.innerHTML = (server.backups || []).length
     ? server.backups.map((backup) => `
       <div class="list-row">
@@ -679,9 +800,14 @@ function renderInstalledMods(mods) {
   installedModsList.innerHTML = mods.length
     ? mods.map((mod) => `
       <div class="installed-item">
-        <strong>${mod.title || mod.filename}</strong>
-        <div class="server-meta">${mod.versionNumber || mod.filename}</div>
-        ${mod.isDependency ? `<span class="runtime-badge">dependency</span>` : ""}
+        <div>
+          <strong>${mod.title || mod.filename}</strong>
+          <div class="server-meta">${mod.versionNumber || mod.filename}</div>
+        </div>
+        <div class="row-action-wrap">
+          ${mod.isDependency ? `<span class="runtime-badge">dependency</span>` : ""}
+          <button type="button" class="secondary-button mod-remove-button" data-filename="${mod.filename}">Remove</button>
+        </div>
       </div>
     `).join("")
     : `<div class="empty-state">No downloaded mods yet.</div>`;
@@ -738,7 +864,55 @@ function renderMods(server, loaderName) {
   modsPath.textContent = server.path;
   modsSearchHint.textContent = `Results are filtered to ${loaderName} on Minecraft ${server.minecraftVersion}, and required Modrinth dependencies will be downloaded automatically.`;
   renderInstalledMods(server.mods || []);
+  renderModUpdates();
   renderModSelectionSummary();
+}
+
+function renderModUpdates() {
+  modUpdateList.innerHTML = state.modUpdates.length
+    ? state.modUpdates.map((entry) => `
+      <div class="list-row compact-row">
+        <div>
+          <strong>${entry.title}</strong>
+          <div class="server-meta">${entry.currentVersion} -> ${entry.latestVersion}</div>
+        </div>
+        <span class="runtime-badge runtime-badge-blue">Update available</span>
+      </div>
+    `).join("")
+    : `<div class="empty-state">No update warnings right now.</div>`;
+}
+
+function renderFiles(server, isRunning) {
+  filesTitle.textContent = `Files · ${server.name}`;
+  filesRuntime.textContent = isRunning ? "Live filesystem" : "Filesystem";
+  filesEmpty.hidden = true;
+  filesPanel.hidden = false;
+  if (!state.openFilePath) {
+    fileEditorLabel.textContent = "Select a text file to edit it here.";
+    downloadFileLink.href = "#";
+  }
+}
+
+function renderFileBrowser(payload) {
+  filesPathLabel.textContent = payload.path ? `Browsing /${payload.path}` : "Browsing /";
+  filesUpButton.disabled = !payload.path;
+  fileList.innerHTML = payload.items.length
+    ? payload.items.map((item) => `
+      <div class="list-row compact-row">
+        <div>
+          <strong>${item.name}</strong>
+          <div class="server-meta">${item.type} · ${item.size} bytes · ${formatTime(item.modifiedAt)}</div>
+        </div>
+        <div class="row-action-wrap">
+          ${item.type === "directory" ? `<button type="button" class="secondary-button file-open-button" data-path="${item.path}" data-type="directory">Open</button>` : ""}
+          ${item.type === "file" && item.textEditable ? `<button type="button" class="secondary-button file-open-button" data-path="${item.path}" data-type="file">Edit</button>` : ""}
+          ${item.type === "file" ? `<a class="secondary-button anchor-button" href="/api/servers/${state.selectedServerId}/files?download=1&path=${encodeURIComponent(item.path)}" target="_blank" rel="noopener">Download</a>` : ""}
+          <button type="button" class="secondary-button file-rename-button" data-path="${item.path}">Rename</button>
+          <button type="button" class="secondary-button file-delete-button" data-path="${item.path}">Delete</button>
+        </div>
+      </div>
+    `).join("")
+    : `<div class="empty-state">This folder is empty.</div>`;
 }
 
 function renderSelectedServer() {
@@ -753,6 +927,10 @@ function renderSelectedServer() {
     overviewPanel.hidden = true;
     overviewTitle.textContent = "Select a server";
     overviewRuntime.textContent = "Idle";
+    healthEmpty.hidden = false;
+    healthPanel.hidden = true;
+    healthTitle.textContent = "Select a server";
+    healthRuntime.textContent = "No server";
 
     managerEmpty.hidden = false;
     managerPanel.hidden = true;
@@ -785,8 +963,18 @@ function renderSelectedServer() {
     modsPanel.hidden = true;
     modsTitle.textContent = "Select a server";
     modsRuntime.textContent = "No server";
+    filesEmpty.hidden = false;
+    filesPanel.hidden = true;
+    filesTitle.textContent = "Select a server";
+    filesRuntime.textContent = "No server";
     state.selectedModProjectIds = [];
+    state.modUpdates = [];
+    state.fileBrowserPath = "";
+    state.openFilePath = "";
+    fileEditor.value = "";
+    fileEditorLabel.textContent = "Select a text file to edit it here.";
     renderModResults();
+    renderModUpdates();
     return;
   }
 
@@ -800,6 +988,7 @@ function renderSelectedServer() {
   topbarHealthChip.textContent = server.readiness?.blocked ? "Blocked setup" : server.readiness?.installNeeded ? "Installer needed" : "Ready state";
 
   renderOverview(server, loaderName, isRunning);
+  renderHealth(server, isRunning);
 
   managerEmpty.hidden = true;
   managerPanel.hidden = false;
@@ -825,6 +1014,7 @@ function renderSelectedServer() {
   renderBackups(server, isRunning);
   renderActivity(server, isRunning);
   renderMods(server, loaderName);
+  renderFiles(server, isRunning);
 }
 
 function stopDetailPolling() {
@@ -851,6 +1041,12 @@ async function refreshServers() {
   renderServers();
 }
 
+async function refreshTemplates() {
+  const payload = await api("/api/templates");
+  state.templates = payload.templates || [];
+  renderTemplates();
+}
+
 async function selectServer(serverId) {
   state.selectedServerId = serverId;
   renderServers();
@@ -866,6 +1062,12 @@ async function refreshSelectedServer(options = {}) {
   try {
     state.selectedServer = await api(`/api/servers/${state.selectedServerId}`);
     renderSelectedServer();
+    if (state.selectedServerId && state.activeMenu === "files") {
+      await loadFileBrowser(state.fileBrowserPath || "");
+    }
+    if (state.selectedServerId && state.activeMenu === "mods") {
+      await refreshModUpdates({ silent: true });
+    }
     await refreshServers();
     if (!options.silent) {
       setStatus(`Loaded controls for ${state.selectedServer.name}.`);
@@ -875,6 +1077,44 @@ async function refreshSelectedServer(options = {}) {
       setStatus(error.message, "status-error");
     }
   }
+}
+
+async function refreshModUpdates(options = {}) {
+  if (!state.selectedServerId) {
+    return;
+  }
+  try {
+    const payload = await api(`/api/servers/${state.selectedServerId}/mod-updates`);
+    state.modUpdates = payload.updates || [];
+    renderModUpdates();
+    if (!options.silent) {
+      setStatus("Checked installed mods for updates.", "status-success");
+    }
+  } catch (error) {
+    if (!options.silent) {
+      setStatus(error.message, "status-error");
+    }
+  }
+}
+
+async function loadFileBrowser(relativePath = "") {
+  if (!state.selectedServerId) {
+    return;
+  }
+  const payload = await api(`/api/servers/${state.selectedServerId}/files?path=${encodeURIComponent(relativePath)}`);
+  state.fileBrowserPath = payload.path || "";
+  renderFileBrowser(payload);
+}
+
+async function openServerFile(relativePath) {
+  if (!state.selectedServerId) {
+    return;
+  }
+  const payload = await api(`/api/servers/${state.selectedServerId}/files?open=1&path=${encodeURIComponent(relativePath)}`);
+  state.openFilePath = payload.path;
+  fileEditor.value = payload.content;
+  fileEditorLabel.textContent = `Editing /${payload.path}`;
+  downloadFileLink.href = `/api/servers/${state.selectedServerId}/files?download=1&path=${encodeURIComponent(payload.path)}`;
 }
 
 async function startSelectedServer() {
@@ -1000,6 +1240,7 @@ async function downloadSelectedMods() {
     state.selectedModProjectIds = [];
     renderInstalledMods(state.selectedServer?.mods || []);
     renderModResults();
+    await refreshModUpdates({ silent: true });
     await refreshSelectedServer({ silent: true });
     const dependencyCount = (payload.installed || []).filter((entry) => entry.isDependency).length;
     const unresolvedCount = (payload.unresolved || []).length;
@@ -1015,6 +1256,28 @@ async function downloadSelectedMods() {
   } finally {
     modsDownloadSelectedButton.disabled = false;
     renderModSelectionSummary();
+  }
+}
+
+async function removeInstalledMod(filename) {
+  if (!state.selectedServerId) {
+    return;
+  }
+  try {
+    const payload = await api(`/api/servers/${state.selectedServerId}/mod-remove`, {
+      method: "POST",
+      body: JSON.stringify({ filename })
+    });
+    if (state.selectedServer) {
+      state.selectedServer.mods = payload.mods;
+    }
+    renderInstalledMods(payload.mods || []);
+    state.modUpdates = state.modUpdates.filter((entry) => entry.filename !== filename);
+    renderModUpdates();
+    await refreshModUpdates({ silent: true });
+    setStatus(`Removed ${filename}.`, "status-success");
+  } catch (error) {
+    setStatus(error.message, "status-error");
   }
 }
 
@@ -1050,17 +1313,21 @@ async function runPlayerAction(action, playerName, enabled) {
     op: "op",
     deop: "deop",
     whitelist: "whitelist",
-    ban: "ban"
+    ban: "ban",
+    pardon: "pardon",
+    kick: "kick"
   }[action];
   if (!endpoint) {
     return;
   }
   try {
+    const reason = ["ban", "kick"].includes(action) ? playerReasonInput.value.trim() : "";
     const payload = await api(`/api/servers/${state.selectedServerId}/${endpoint}`, {
       method: "POST",
       body: JSON.stringify({
         playerName,
-        enabled
+        enabled,
+        reason
       })
     });
     if (state.selectedServer && payload.players) {
@@ -1068,6 +1335,9 @@ async function runPlayerAction(action, playerName, enabled) {
       renderPlayers(state.selectedServer, state.loaders.find((loader) => loader.id === state.selectedServer.loader)?.name || state.selectedServer.loader, state.selectedServer.runtime?.runtimeState === "running");
     }
     await refreshSelectedServer({ silent: true });
+    if (["ban", "kick"].includes(action)) {
+      playerReasonInput.value = "";
+    }
     setStatus(`${action} updated for ${playerName}.`, "status-success");
   } catch (error) {
     setStatus(error.message, "status-error");
@@ -1178,6 +1448,216 @@ async function restoreBackup(backupId) {
   }
 }
 
+async function saveBackupSchedule() {
+  if (!state.selectedServerId) {
+    return;
+  }
+  try {
+    const payload = await api(`/api/servers/${state.selectedServerId}/backup-schedule`, {
+      method: "POST",
+      body: JSON.stringify({
+        enabled: backupScheduleEnabled.checked,
+        cadence: backupCadence.value,
+        retention: Number(backupRetention.value || 7)
+      })
+    });
+    if (state.selectedServer) {
+      state.selectedServer.backupSchedule = payload;
+      renderBackups(state.selectedServer, state.selectedServer.runtime?.runtimeState === "running");
+    }
+    setStatus("Backup schedule saved.", "status-success");
+  } catch (error) {
+    setStatus(error.message, "status-error");
+  }
+}
+
+async function saveRuntimeProfile() {
+  if (!state.selectedServerId) {
+    return;
+  }
+  try {
+    state.selectedServer = await api(`/api/servers/${state.selectedServerId}/runtime`, {
+      method: "POST",
+      body: JSON.stringify({
+        memoryMb: Number(runtimeMemoryMb.value || 4096),
+        javaOverrideMajor: runtimeJavaOverride.value || null,
+        extraJvmArgs: runtimeExtraJvmArgs.value
+      })
+    });
+    renderSelectedServer();
+    await refreshServers();
+    setStatus("Runtime profile updated.", "status-success");
+  } catch (error) {
+    setStatus(error.message, "status-error");
+  }
+}
+
+async function saveCurrentServerAsTemplate() {
+  if (!state.selectedServerId) {
+    setStatus("Select a server before saving a template.", "status-error");
+    return;
+  }
+  try {
+    await api(`/api/servers/${state.selectedServerId}/templates`, {
+      method: "POST",
+      body: JSON.stringify({
+        name: templateNameInput.value || `${state.selectedServer?.name || "Server"} Template`
+      })
+    });
+    templateNameInput.value = "";
+    await refreshTemplates();
+    setStatus("Template saved.", "status-success");
+  } catch (error) {
+    setStatus(error.message, "status-error");
+  }
+}
+
+async function deleteTemplate(templateId) {
+  try {
+    await api(`/api/templates?id=${encodeURIComponent(templateId)}`, {
+      method: "DELETE"
+    });
+    await refreshTemplates();
+    setStatus("Template deleted.", "status-success");
+  } catch (error) {
+    setStatus(error.message, "status-error");
+  }
+}
+
+async function cloneServer(serverId, serverName = "server") {
+  const name = window.prompt("Clone name", `${serverName} Copy`);
+  if (!name) {
+    return;
+  }
+  const port = window.prompt("Clone port", "25566");
+  try {
+    const payload = await api(`/api/servers/${serverId}/clone`, {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        port: Number(port || 25566)
+      })
+    });
+    await refreshServers();
+    await refreshTemplates();
+    await selectServer(payload.id);
+    setStatus(`${payload.name} cloned from ${serverName}.`, "status-success");
+  } catch (error) {
+    setStatus(error.message, "status-error");
+  }
+}
+
+async function createFolder() {
+  if (!state.selectedServerId || !newFolderInput.value.trim()) {
+    return;
+  }
+  try {
+    await api(`/api/servers/${state.selectedServerId}/files`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "mkdir",
+        path: [state.fileBrowserPath, newFolderInput.value.trim()].filter(Boolean).join("/")
+      })
+    });
+    newFolderInput.value = "";
+    await loadFileBrowser(state.fileBrowserPath);
+    setStatus("Folder created.", "status-success");
+  } catch (error) {
+    setStatus(error.message, "status-error");
+  }
+}
+
+async function saveOpenFile() {
+  if (!state.selectedServerId || !state.openFilePath) {
+    return;
+  }
+  try {
+    await api(`/api/servers/${state.selectedServerId}/files`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "save",
+        path: state.openFilePath,
+        content: fileEditor.value
+      })
+    });
+    setStatus(`Saved ${state.openFilePath}.`, "status-success");
+    await loadFileBrowser(state.fileBrowserPath);
+  } catch (error) {
+    setStatus(error.message, "status-error");
+  }
+}
+
+async function uploadFile(file) {
+  if (!state.selectedServerId || !file) {
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const base64 = String(reader.result).split(",").pop();
+      await api(`/api/servers/${state.selectedServerId}/files`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "upload",
+          directory: state.fileBrowserPath,
+          filename: file.name,
+          contentBase64: base64
+        })
+      });
+      await loadFileBrowser(state.fileBrowserPath);
+      setStatus(`Uploaded ${file.name}.`, "status-success");
+    } catch (error) {
+      setStatus(error.message, "status-error");
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+async function renameFilePath(relativePath) {
+  const nextName = window.prompt("Rename to", relativePath.split("/").pop() || "");
+  if (!nextName) {
+    return;
+  }
+  try {
+    await api(`/api/servers/${state.selectedServerId}/files`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "rename",
+        path: relativePath,
+        nextName
+      })
+    });
+    await loadFileBrowser(state.fileBrowserPath);
+    setStatus("Path renamed.", "status-success");
+  } catch (error) {
+    setStatus(error.message, "status-error");
+  }
+}
+
+async function deleteFilePath(relativePath) {
+  if (!window.confirm(`Delete ${relativePath}?`)) {
+    return;
+  }
+  try {
+    await api(`/api/servers/${state.selectedServerId}/files`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "delete",
+        path: relativePath
+      })
+    });
+    if (state.openFilePath === relativePath) {
+      state.openFilePath = "";
+      fileEditor.value = "";
+      fileEditorLabel.textContent = "Select a text file to edit it here.";
+    }
+    await loadFileBrowser(state.fileBrowserPath);
+    setStatus("Path deleted.", "status-success");
+  } catch (error) {
+    setStatus(error.message, "status-error");
+  }
+}
+
 minecraftVersion.addEventListener("change", async () => {
   updateJavaPolicy();
   renderCreateInsights();
@@ -1214,7 +1694,9 @@ createForm.addEventListener("submit", async (event) => {
     motd: formData.get("motd"),
     onlineMode: formData.get("onlineMode") === "on",
     acceptEula: formData.get("acceptEula") === "on",
-    port: Number(formData.get("port"))
+    port: Number(formData.get("port")),
+    javaOverrideMajor: formData.get("javaOverrideMajor") || null,
+    extraJvmArgs: formData.get("extraJvmArgs") || ""
   };
 
   if (state.variantKey && variantSelect.value) {
@@ -1234,6 +1716,15 @@ createForm.addEventListener("submit", async (event) => {
       method: "POST",
       body: JSON.stringify(payload)
     });
+    const selectedTemplate = state.templates.find((template) => template.id === templateSelect.value);
+    if (selectedTemplate?.profile?.properties) {
+      await api(`/api/servers/${created.id}/settings`, {
+        method: "POST",
+        body: JSON.stringify({
+          properties: selectedTemplate.profile.properties
+        })
+      });
+    }
     await refreshServers();
     await selectServer(created.id);
     setStatus(`${created.name} created with automatic Java selection.`, "status-success");
@@ -1245,10 +1736,23 @@ createForm.addEventListener("submit", async (event) => {
 });
 
 for (const [key, button] of Object.entries(menuButtons)) {
-  button.addEventListener("click", () => setActiveMenu(key));
+  button.addEventListener("click", async () => {
+    setActiveMenu(key);
+    if (key === "files" && state.selectedServerId) {
+      await loadFileBrowser(state.fileBrowserPath || "");
+    }
+    if (key === "mods" && state.selectedServerId) {
+      await refreshModUpdates({ silent: true });
+    }
+  });
 }
 
 themeSelect.addEventListener("change", () => applyTheme(themeSelect.value));
+templateSelect.addEventListener("change", () => {
+  if (templateSelect.value) {
+    applyTemplate(templateSelect.value);
+  }
+});
 startServerButton.addEventListener("click", startSelectedServer);
 stopServerButton.addEventListener("click", stopSelectedServer);
 deleteServerButton.addEventListener("click", () => {
@@ -1267,6 +1771,13 @@ modSearchButton.addEventListener("click", searchMods);
 settingsForm.addEventListener("submit", saveSettings);
 createBackupButton.addEventListener("click", createBackup);
 saveRawSettingsButton.addEventListener("click", saveRawSettings);
+saveRuntimeButton.addEventListener("click", saveRuntimeProfile);
+saveBackupScheduleButton.addEventListener("click", saveBackupSchedule);
+saveTemplateButton.addEventListener("click", saveCurrentServerAsTemplate);
+filesUpButton.addEventListener("click", () => loadFileBrowser(state.fileBrowserPath.split("/").slice(0, -1).join("/")));
+createFolderButton.addEventListener("click", createFolder);
+saveFileButton.addEventListener("click", saveOpenFile);
+uploadFileInput.addEventListener("change", () => uploadFile(uploadFileInput.files?.[0]));
 
 inventorySearch.addEventListener("input", () => {
   state.inventorySearch = inventorySearch.value;
@@ -1274,6 +1785,12 @@ inventorySearch.addEventListener("input", () => {
 });
 
 serverList.addEventListener("click", (event) => {
+  const cloneButton = event.target.closest(".clone-server-button");
+  if (cloneButton) {
+    event.stopPropagation();
+    cloneServer(cloneButton.dataset.serverId, cloneButton.dataset.serverName);
+    return;
+  }
   const deleteButton = event.target.closest(".delete-server-button");
   if (deleteButton) {
     event.stopPropagation();
@@ -1284,6 +1801,13 @@ serverList.addEventListener("click", (event) => {
   const row = event.target.closest(".server-row");
   if (row) {
     selectServer(row.dataset.serverId);
+  }
+});
+
+templateList.addEventListener("click", (event) => {
+  const button = event.target.closest(".template-delete-button");
+  if (button) {
+    deleteTemplate(button.dataset.templateId);
   }
 });
 
@@ -1381,6 +1905,34 @@ backupsList.addEventListener("click", (event) => {
   restoreBackup(button.dataset.backupId);
 });
 
+fileList.addEventListener("click", (event) => {
+  const openButton = event.target.closest(".file-open-button");
+  if (openButton) {
+    if (openButton.dataset.type === "directory") {
+      loadFileBrowser(openButton.dataset.path);
+    } else {
+      openServerFile(openButton.dataset.path);
+    }
+    return;
+  }
+  const renameButton = event.target.closest(".file-rename-button");
+  if (renameButton) {
+    renameFilePath(renameButton.dataset.path);
+    return;
+  }
+  const deleteButton = event.target.closest(".file-delete-button");
+  if (deleteButton) {
+    deleteFilePath(deleteButton.dataset.path);
+  }
+});
+
+installedModsList.addEventListener("click", (event) => {
+  const button = event.target.closest(".mod-remove-button");
+  if (button) {
+    removeInstalledMod(button.dataset.filename);
+  }
+});
+
 window.addEventListener("beforeunload", stopDetailPolling);
 
 async function init() {
@@ -1399,6 +1951,7 @@ async function init() {
     renderModResults();
     renderModSelectionSummary();
     setActiveMenu("inventory");
+    await refreshTemplates();
     await refreshServers();
   } catch (error) {
     setStatus(error.message, "status-error");

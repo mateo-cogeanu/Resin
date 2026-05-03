@@ -2,6 +2,71 @@
 
 ## 2026-05-03
 
+### Core Management Expansion
+- added a dedicated `Health` screen and a dedicated `Files` screen to the Resin management workspace
+- expanded the selected-server detail model so the frontend now receives health data and backup schedule state together with runtime, settings, backups, players, and mods
+- kept the new screens local-first and intentionally avoided adding secure global connection work in this pass
+
+### Health Center
+- added a health-center backend model that combines readiness checks, EULA state, Java profile status, local port availability checks, and mod follow-up warnings
+- surfaced duplicate mod file warnings and unresolved dependency follow-up notes from prior mod install activity
+- added a dedicated `GET /api/servers/:id/health` endpoint for focused health inspection
+
+### File Manager and Config Editing
+- added server file browser helpers for listing folders, opening supported text files, saving edits, creating folders, renaming paths, deleting paths, uploading files, and downloading files
+- added path normalization and root-bound path validation so file actions stay inside the selected server directory
+- exposed file APIs through `/api/servers/:id/files` with query-based open/download behavior and action-based POST mutations
+- added a WebUI file browser and text editor with upload, download, rename, delete, and create-folder controls
+
+### Runtime Profiles
+- expanded server metadata to store `installerVersion`, `extraJvmArgs`, and optional `javaOverrideMajor`
+- updated server creation so new servers can be provisioned with an explicit Java override and extra JVM arguments
+- regenerated launch scripts and README metadata when runtime profile values change
+- added a runtime-profile update flow for memory, Java override, and JVM args through `POST /api/servers/:id/runtime`
+
+### Backup Scheduling
+- added persisted backup schedule files per server with enabled state, cadence, retention, and next-run time
+- implemented schedule helpers for hourly, daily, and weekly cadences
+- added a background scheduler loop that creates scheduled backups, prunes old snapshots, and records failures as activity
+- added backup schedule save/read endpoints and matching UI controls in the Backups screen
+
+### Templates and Cloning
+- added a `templates/` store for reusable server templates
+- added template save/list/delete flows so the current selected server can become a reusable Create preset
+- added template application in the Create screen, including post-create property hydration for saved server settings
+- added server cloning through `POST /api/servers/:id/clone`
+- cloned server setup now reuses the source configuration, runtime profile, properties, and downloaded mod set while intentionally skipping live world data
+
+### Players
+- added kick support for online players
+- added pardon support as a first-class player action instead of only hiding it behind the generic ban toggle
+- expanded ban handling to accept an optional reason and forward that reason to the running server command when available
+- added a shared reason input in the Players screen for kick and ban operations
+
+### Mods
+- added installed-mod removal through `POST /api/servers/:id/mod-remove`
+- added on-demand update checks for installed Modrinth-backed mods through `GET /api/servers/:id/mod-updates`
+- moved mod update checks out of the general refresh loop so Resin does not hammer Modrinth during normal polling
+- added a dedicated updates/warnings card in the Mods screen and remove buttons in the installed-mod list
+
+### Create and Navigation UX
+- added template selection, Java override, and extra JVM args to the Create flow
+- added a template management side card so reusable server profiles can be saved and deleted from the UI
+- added clone actions to Inventory cards
+
+### Documentation
+- updated `README.md` to document the new Health and Files screens
+- updated `README.md` to document runtime profile editing, scheduled backups, cloning, templates, file management, and richer player/mod workflows
+- refreshed the limitations section in `README.md` to include the intentionally text-focused file editor scope
+
+### Verification
+- verified `node --check server.js`
+- verified `node --check public/app.js`
+- verified health-center output on a fresh Fabric server
+- verified file listing, text-file open, template save/list, runtime profile save, and backup schedule save APIs
+- verified dependency-aware mod install plus on-demand mod update checks on the fresh Fabric test server
+- verified server clone creation, then cleaned up the disposable clone after validation
+
 ### Mods
 - replaced the single-project mod download flow with a dependency-aware batch installer for Modrinth-backed servers
 - added recursive required-dependency resolution using Modrinth project and version metadata so selected mods can pull in their required libraries automatically
