@@ -565,6 +565,51 @@ body {
   margin-bottom: 1rem;
 }
 
+.connection-surface {
+  display: grid;
+  gap: 0.95rem;
+}
+
+.connection-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.05rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(83, 185, 255, 0.18);
+  background:
+    linear-gradient(135deg, rgba(83, 185, 255, 0.16), rgba(50, 147, 255, 0.05)),
+    rgba(255, 255, 255, 0.02);
+}
+
+.connection-label {
+  display: inline-block;
+  margin-bottom: 0.3rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.connection-address {
+  display: block;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(1.1rem, 2vw, 1.45rem);
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+}
+
+.connection-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem;
+}
+
+.connection-stat {
+  min-width: 0;
+}
+
 .loader-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(13.75rem, 1fr));
@@ -1368,6 +1413,10 @@ button[type="submit"]:hover,
   .player-row-actions {
     grid-template-columns: 1fr;
     flex-direction: column;
+    align-items: stretch;
+  }
+
+  .connection-hero {
     align-items: stretch;
   }
 

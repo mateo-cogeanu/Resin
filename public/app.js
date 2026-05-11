@@ -566,6 +566,11 @@ function formatBytes(value) {
   return `${scaled >= 10 || power === 0 ? scaled.toFixed(0) : scaled.toFixed(1)} ${units[power]}`;
 }
 
+// Keep join details readable and consistent anywhere Resin needs to surface a local server address.
+function buildServerAddress(server, overview = {}) {
+  return `127.0.0.1:${overview.port || server.port || 25565}`;
+}
+
 // Keep Overview actionable by surfacing the next trust-building step instead of a generic summary.
 function buildOverviewRecommendations(server) {
   const overview = server.overview || {};
@@ -728,18 +733,33 @@ function renderOverview(server, loaderName, isRunning) {
     </div>
   `).join("") || `<div class="empty-state">No readiness data yet.</div>`;
 
-  const address = `127.0.0.1:${overview.port || server.port || 25565}`;
-  overviewConnection.innerHTML = [
-    ["Address", address],
-    ["Loader", loaderName],
-    ["Java", server.javaRuntime ? `Java ${server.javaRuntime.major}` : "Auto"],
-    ["Last backup", overview.lastBackupAt ? formatSince(overview.lastBackupAt) : "None yet"]
-  ].map(([label, value]) => `
-    <div class="list-row compact-row">
-      <strong>${label}</strong>
-      <span class="server-meta">${value}</span>
+  const address = buildServerAddress(server, overview);
+  // Make the join target the focal point so the operator can share or paste it quickly.
+  overviewConnection.innerHTML = `
+    <div class="connection-surface">
+      <div class="connection-hero">
+        <div>
+          <span class="connection-label">Server IP</span>
+          <strong class="connection-address">${address}</strong>
+          <div class="server-meta">Use this address in Minecraft's multiplayer screen.</div>
+        </div>
+        <button type="button" class="secondary-button copy-address-button" data-address="${address}" aria-label="Copy server IP ${address}">Copy IP</button>
+      </div>
+      <div class="connection-meta-grid">
+        ${[
+          ["Loader", loaderName],
+          ["Java", server.javaRuntime ? `Java ${server.javaRuntime.major}` : "Auto"],
+          ["World", overview.worldName || "world"],
+          ["Last backup", overview.lastBackupAt ? formatSince(overview.lastBackupAt) : "None yet"]
+        ].map(([label, value]) => `
+          <div class="stat-surface connection-stat">
+            <span>${label}</span>
+            <strong>${value}</strong>
+          </div>
+        `).join("")}
+      </div>
     </div>
-  `).join("");
+  `;
 
   const onlinePlayers = (server.players || []).filter((player) => player.online);
   overviewPlayers.innerHTML = onlinePlayers.length
@@ -2138,6 +2158,19 @@ fileList.addEventListener("click", (event) => {
   const deleteButton = event.target.closest(".file-delete-button");
   if (deleteButton) {
     deleteFilePath(deleteButton.dataset.path);
+  }
+});
+
+overviewConnection.addEventListener("click", async (event) => {
+  const button = event.target.closest(".copy-address-button");
+  if (!button) {
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(button.dataset.address || "");
+    setStatus("Copied the server IP.", "status-success");
+  } catch {
+    setStatus("Clipboard access was blocked in this browser.", "status-error");
   }
 });
 

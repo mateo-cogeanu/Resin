@@ -27,6 +27,12 @@
 - added dedicated layout styling for overview hero badges, health summary cards, console insights, console utility actions, selected backup rows, and activity timeline entries
 - kept the new dashboard elements responsive so the expanded panels still collapse cleanly on narrower screens
 
+### Overview Connection UX
+- rebuilt the `Overview` connection card into a clearer join surface instead of a plain metadata list
+- elevated the server IP into a dedicated highlighted block so the address is readable at a glance
+- added a one-click `Copy IP` action with an accessible label and success/error status feedback
+- moved loader, Java, world, and last-backup details into supporting connection stats under the main join address
+
 ### Verification
 - verified `node --check server.js`
 - verified `node --check public/app.js`
