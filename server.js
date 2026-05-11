@@ -5,6 +5,7 @@ const { createReadStream } = require("node:fs");
 const { spawn, spawnSync } = require("node:child_process");
 const { pipeline } = require("node:stream/promises");
 const net = require("node:net");
+const os = require("node:os");
 
 const PORT = Number(process.env.PORT || 3000);
 const ROOT_DIR = __dirname;
@@ -112,6 +113,41 @@ function trimLogLines(lines) {
   if (lines.length > MAX_LOG_LINES) {
     lines.splice(0, lines.length - MAX_LOG_LINES);
   }
+}
+
+// Prefer a practical LAN address for sharing while still keeping localhost as a same-machine fallback.
+function discoverHostConnectionOptions(port) {
+  const interfaces = os.networkInterfaces();
+  const localCandidates = [];
+
+  for (const [interfaceName, records] of Object.entries(interfaces)) {
+    for (const record of records || []) {
+      if (!record || record.internal || record.family !== "IPv4") {
+        continue;
+      }
+      localCandidates.push({
+        interface: interfaceName,
+        host: record.address,
+        label: `${interfaceName} LAN`,
+        address: `${record.address}:${port}`
+      });
+    }
+  }
+
+  const sortedCandidates = localCandidates.sort((left, right) => left.interface.localeCompare(right.interface));
+  const localhost = {
+    interface: "loopback",
+    host: "127.0.0.1",
+    label: "This machine only",
+    address: `127.0.0.1:${port}`
+  };
+  const addresses = [...sortedCandidates, localhost];
+
+  return {
+    preferred: addresses[0] || localhost,
+    alternatives: addresses.slice(1),
+    localhost
+  };
 }
 
 function activityFilePath(serverId) {
@@ -1469,6 +1505,8 @@ async function buildServerOverview(serverId, server, players, mods, backups, act
   const runtime = getRuntimeSummary(serverId);
   const onlinePlayers = players.filter((player) => player.online);
   const lastBackup = backups[0] || null;
+  const port = Number(properties["server-port"] || server.port || 25565);
+  const connection = discoverHostConnectionOptions(port);
   return {
     runtimeState: runtime.runtimeState,
     onlinePlayers: onlinePlayers.length,
@@ -1485,8 +1523,9 @@ async function buildServerOverview(serverId, server, players, mods, backups, act
     worldName: properties["level-name"] || "world",
     motd: properties.motd || server.motd || server.name,
     maxPlayers: Number(properties["max-players"] || 20),
-    port: Number(properties["server-port"] || server.port || 25565),
-    onlineMode: boolFromProperty(properties["online-mode"], Boolean(server.onlineMode))
+    port,
+    onlineMode: boolFromProperty(properties["online-mode"], Boolean(server.onlineMode)),
+    connection
   };
 }
 

@@ -566,9 +566,9 @@ function formatBytes(value) {
   return `${scaled >= 10 || power === 0 ? scaled.toFixed(0) : scaled.toFixed(1)} ${units[power]}`;
 }
 
-// Keep join details readable and consistent anywhere Resin needs to surface a local server address.
+// Prefer the host-provided LAN address when Resin knows one, and only fall back to localhost as a last resort.
 function buildServerAddress(server, overview = {}) {
-  return `127.0.0.1:${overview.port || server.port || 25565}`;
+  return overview.connection?.preferred?.address || `127.0.0.1:${overview.port || server.port || 25565}`;
 }
 
 // Keep Overview actionable by surfacing the next trust-building step instead of a generic summary.
@@ -734,17 +734,33 @@ function renderOverview(server, loaderName, isRunning) {
   `).join("") || `<div class="empty-state">No readiness data yet.</div>`;
 
   const address = buildServerAddress(server, overview);
+  const connection = overview.connection || {};
+  const alternativeAddresses = connection.alternatives || [];
+  const primaryLabel = connection.preferred?.host === "127.0.0.1" ? "Local address" : "LAN address";
   // Make the join target the focal point so the operator can share or paste it quickly.
   overviewConnection.innerHTML = `
     <div class="connection-surface">
       <div class="connection-hero">
         <div>
-          <span class="connection-label">Server IP</span>
+          <span class="connection-label">${primaryLabel}</span>
           <strong class="connection-address">${address}</strong>
-          <div class="server-meta">Use this address in Minecraft's multiplayer screen.</div>
+          <div class="server-meta">${connection.preferred?.host === "127.0.0.1" ? "Only this machine can use localhost. Resin could not find a LAN IP yet." : "Devices on your local network can use this address in Minecraft."}</div>
         </div>
         <button type="button" class="secondary-button copy-address-button" data-address="${address}" aria-label="Copy server IP ${address}">Copy IP</button>
       </div>
+      ${alternativeAddresses.length ? `
+        <div class="connection-alt-list">
+          ${alternativeAddresses.map((entry) => `
+            <div class="list-row compact-row connection-alt-row">
+              <div>
+                <strong>${entry.address}</strong>
+                <div class="server-meta">${entry.label}</div>
+              </div>
+              <button type="button" class="secondary-button copy-address-button" data-address="${entry.address}" aria-label="Copy alternate server IP ${entry.address}">Copy</button>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
       <div class="connection-meta-grid">
         ${[
           ["Loader", loaderName],
@@ -1158,11 +1174,12 @@ function renderSelectedServer() {
 
   const loaderName = state.loaders.find((loader) => loader.id === server.loader)?.name || server.loader;
   const isRunning = server.runtime?.runtimeState === "running";
+  const preferredAddress = buildServerAddress(server, server.overview || {});
 
   activeServerDisplay.textContent = server.name;
   activeServerMeta.textContent = `${loaderName} · ${server.minecraftVersion}${server.javaRuntime ? ` · Java ${server.javaRuntime.major}` : ""}`;
   topbarRuntimeChip.textContent = isRunning ? "Running now" : "Stopped";
-  topbarAddressChip.textContent = `127.0.0.1:${server.overview?.port || server.port || 25565}`;
+  topbarAddressChip.textContent = preferredAddress;
   topbarHealthChip.textContent = server.readiness?.blocked ? "Blocked setup" : server.readiness?.installNeeded ? "Installer needed" : "Ready state";
 
   renderOverview(server, loaderName, isRunning);

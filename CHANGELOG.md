@@ -32,6 +32,9 @@
 - elevated the server IP into a dedicated highlighted block so the address is readable at a glance
 - added a one-click `Copy IP` action with an accessible label and success/error status feedback
 - moved loader, Java, world, and last-backup details into supporting connection stats under the main join address
+- replaced the hardcoded `127.0.0.1` display with host-discovered LAN address detection from the Resin backend
+- made Overview and the top bar prefer a real local-network address when one is available, with localhost kept only as a fallback
+- added alternate local address rows so additional host interfaces can still be copied when needed
 
 ### Verification
 - verified `node --check server.js`
@@ -40,6 +43,7 @@
 - verified backup creation now records preview metadata including snapshot size and file count on a disposable Fabric test server
 - verified server detail now includes the richer overview, health, and backup data used by the new dashboard surfaces
 - deleted the disposable `ui-qa` verification server after testing so inventory returned to a clean state
+- verified the restarted backend now returns a LAN address plus fallback addresses in `overview.connection` on a disposable Fabric test server, then deleted that test server
 
 ## 2026-05-03
 

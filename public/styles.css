@@ -606,6 +606,15 @@ body {
   gap: 0.75rem;
 }
 
+.connection-alt-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.connection-alt-row {
+  align-items: center;
+}
+
 .connection-stat {
   min-width: 0;
 }
