@@ -17,12 +17,15 @@ const state = {
   selectedModProjectIds: [],
   modUpdates: [],
   consoleFilter: "all",
+  consoleSearch: "",
+  consoleDisplayOverride: null,
   inventoryFilter: "all",
   inventorySearch: "",
   playersSearch: "",
   theme: localStorage.getItem("resinTheme") || "midnight",
   fileBrowserPath: "",
   openFilePath: "",
+  selectedBackupId: "",
   commandHistory: JSON.parse(localStorage.getItem("resinCommandHistory") || "[]"),
   commandHistoryIndex: -1
 };
@@ -92,7 +95,9 @@ const overviewRuntime = document.getElementById("overviewRuntime");
 const overviewEmpty = document.getElementById("overviewEmpty");
 const overviewPanel = document.getElementById("overviewPanel");
 const overviewSummary = document.getElementById("overviewSummary");
+const overviewHeroMeta = document.getElementById("overviewHeroMeta");
 const overviewStats = document.getElementById("overviewStats");
+const overviewRecommendations = document.getElementById("overviewRecommendations");
 const readinessPill = document.getElementById("readinessPill");
 const readinessList = document.getElementById("readinessList");
 const overviewConnection = document.getElementById("overviewConnection");
@@ -108,6 +113,7 @@ const healthRuntime = document.getElementById("healthRuntime");
 const healthEmpty = document.getElementById("healthEmpty");
 const healthPanel = document.getElementById("healthPanel");
 const healthSummary = document.getElementById("healthSummary");
+const healthOverviewCards = document.getElementById("healthOverviewCards");
 const healthChecks = document.getElementById("healthChecks");
 
 const managerTitle = document.getElementById("managerTitle");
@@ -127,7 +133,12 @@ const refreshServerButton = document.getElementById("refreshServerButton");
 const commandInput = document.getElementById("commandInput");
 const sendCommandButton = document.getElementById("sendCommandButton");
 const consoleOutput = document.getElementById("consoleOutput");
+const consoleSearchInput = document.getElementById("consoleSearchInput");
+const consoleInsightBar = document.getElementById("consoleInsightBar");
 const consoleAutoscroll = document.getElementById("consoleAutoscroll");
+const copyConsoleButton = document.getElementById("copyConsoleButton");
+const downloadConsoleButton = document.getElementById("downloadConsoleButton");
+const clearConsoleViewButton = document.getElementById("clearConsoleViewButton");
 
 const playersTitle = document.getElementById("playersTitle");
 const playersRuntime = document.getElementById("playersRuntime");
@@ -167,6 +178,8 @@ const backupRetention = document.getElementById("backupRetention");
 const backupScheduleEnabled = document.getElementById("backupScheduleEnabled");
 const saveBackupScheduleButton = document.getElementById("saveBackupScheduleButton");
 const backupScheduleSummary = document.getElementById("backupScheduleSummary");
+const backupDetail = document.getElementById("backupDetail");
+const confirmRestoreButton = document.getElementById("confirmRestoreButton");
 
 const activityTitle = document.getElementById("activityTitle");
 const activityRuntime = document.getElementById("activityRuntime");
@@ -542,6 +555,75 @@ function formatSince(value) {
   return `${days}d ago`;
 }
 
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (!bytes) {
+    return "0 B";
+  }
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const power = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  const scaled = bytes / (1024 ** power);
+  return `${scaled >= 10 || power === 0 ? scaled.toFixed(0) : scaled.toFixed(1)} ${units[power]}`;
+}
+
+// Keep Overview actionable by surfacing the next trust-building step instead of a generic summary.
+function buildOverviewRecommendations(server) {
+  const overview = server.overview || {};
+  const recommendations = [];
+
+  if (server.readiness?.installNeeded) {
+    recommendations.push({
+      title: "Finish installer prep",
+      detail: "Run the generated installer workflow before treating this server as launch-ready."
+    });
+  }
+  if (server.readiness?.checks?.some((check) => check.key === "eula" && !check.ok)) {
+    recommendations.push({
+      title: "Accept the EULA",
+      detail: "The server still needs an accepted Mojang EULA before a proper first boot."
+    });
+  }
+  if (!overview.backups) {
+    recommendations.push({
+      title: "Create the first backup",
+      detail: "Take a baseline snapshot before major mod, config, or world changes."
+    });
+  }
+  if (server.health?.checks?.some((check) => check.label === "Port availability" && check.level !== "ok")) {
+    recommendations.push({
+      title: "Resolve the port issue",
+      detail: "The configured port is occupied right now, so players may not be able to join."
+    });
+  }
+  if (!recommendations.length) {
+    recommendations.push({
+      title: "Server looks healthy",
+      detail: "You can jump straight into console, players, or mod maintenance from here."
+    });
+  }
+
+  return recommendations.slice(0, 4);
+}
+
+// Summarize only the currently visible console slice so filters and search feel informative at a glance.
+function buildConsoleInsightEntries(logs) {
+  const counts = {
+    lines: logs.length,
+    joins: logs.filter((entry) => classifyLog(entry) === "joins").length,
+    chat: logs.filter((entry) => classifyLog(entry) === "chat").length,
+    errors: logs.filter((entry) => classifyLog(entry) === "errors").length,
+    commands: logs.filter((entry) => classifyLog(entry) === "commands").length
+  };
+
+  return [
+    ["Visible lines", String(counts.lines)],
+    ["Joins", String(counts.joins)],
+    ["Chat", String(counts.chat)],
+    ["Warnings", String(counts.errors)],
+    ["Commands", String(counts.commands)]
+  ];
+}
+
 function classifyLog(entry) {
   const line = String(entry?.line || "");
   const source = String(entry?.source || "");
@@ -562,22 +644,37 @@ function classifyLog(entry) {
 
 function renderConsoleOutputFromServer(server) {
   const logs = server?.runtime?.logs || [];
-  const filtered = state.consoleFilter === "all"
+  let filtered = state.consoleFilter === "all"
     ? logs
     : logs.filter((entry) => classifyLog(entry) === state.consoleFilter);
+  if (state.consoleSearch.trim()) {
+    const query = state.consoleSearch.trim().toLowerCase();
+    filtered = filtered.filter((entry) => String(entry.line || "").toLowerCase().includes(query) || String(entry.source || "").toLowerCase().includes(query));
+  }
+  if (Array.isArray(state.consoleDisplayOverride)) {
+    filtered = state.consoleDisplayOverride;
+  }
   const shouldStick = consoleAutoscroll.checked && (consoleOutput.scrollHeight - consoleOutput.scrollTop - consoleOutput.clientHeight < 60);
-  consoleOutput.textContent = filtered.length
+  const renderedLines = filtered.length
     ? filtered.map((entry) => {
         const stamp = entry.at ? new Date(entry.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "--:--:--";
         return `[${stamp}] ${entry.source}> ${entry.line}`;
       }).join("\n")
     : "No console output for this filter yet.";
+  consoleOutput.textContent = renderedLines;
+  consoleInsightBar.innerHTML = buildConsoleInsightEntries(filtered).map(([label, value]) => `
+    <div class="metric-pill">
+      <span>${label}</span>
+      <strong>${value}</strong>
+    </div>
+  `).join("");
 
   if (shouldStick || consoleAutoscroll.checked) {
     consoleOutput.scrollTop = consoleOutput.scrollHeight;
   }
 }
 
+// Render Overview as a decision surface, not just a data dump, so the operator can tell what matters first.
 function renderOverview(server, loaderName, isRunning) {
   overviewTitle.textContent = `Overview · ${server.name}`;
   overviewRuntime.textContent = isRunning ? "Running" : server.status;
@@ -589,6 +686,12 @@ function renderOverview(server, loaderName, isRunning) {
     : "Resin has enough context here to tell you whether the server is runnable and what needs attention.";
 
   const overview = server.overview || {};
+  overviewHeroMeta.innerHTML = [
+    [server.readiness?.blocked ? "Blocked setup" : overview.ready ? "Ready to run" : "Needs review", server.readiness?.blocked ? "" : overview.ready ? "runtime-badge-green" : "runtime-badge-blue"],
+    [`${loaderName} ${server.minecraftVersion}`, "runtime-badge-blue"],
+    [server.javaRuntime ? `Java ${server.javaRuntime.major}` : "Java auto", ""],
+    [overview.onlineMode ? "Online mode" : "Offline mode", ""]
+  ].map(([label, className]) => `<span class="${`runtime-badge ${className}`.trim()}">${label}</span>`).join("");
   overviewStats.innerHTML = [
     ["Runtime", overview.runtimeState || "stopped"],
     ["Ready", overview.ready ? "Yes" : "Needs attention"],
@@ -602,6 +705,14 @@ function renderOverview(server, loaderName, isRunning) {
     <div class="stat-surface">
       <span>${label}</span>
       <strong>${value}</strong>
+    </div>
+  `).join("");
+  overviewRecommendations.innerHTML = buildOverviewRecommendations(server).map((item) => `
+    <div class="list-row compact-row">
+      <div>
+        <strong>${item.title}</strong>
+        <div class="server-meta">${item.detail}</div>
+      </div>
     </div>
   `).join("");
 
@@ -651,6 +762,7 @@ function renderOverview(server, loaderName, isRunning) {
   `).join("") || `<div class="empty-state">No activity yet.</div>`;
 }
 
+// Give Health a compact summary before the full checklist so blockers stand out immediately.
 function renderHealth(server, isRunning) {
   healthTitle.textContent = `Health · ${server.name}`;
   healthRuntime.textContent = isRunning ? "Live checks" : "Static checks";
@@ -659,6 +771,18 @@ function renderHealth(server, isRunning) {
   healthSummary.textContent = server.health?.summary === "Blocked"
     ? "This server has at least one blocker that should be fixed before normal use."
     : "Health checks combine startup readiness, Java profile, port availability, EULA state, and mod follow-up warnings.";
+  const totalChecks = server.health?.checks || [];
+  healthOverviewCards.innerHTML = [
+    ["Summary", server.health?.summary || "Unknown"],
+    ["Checks", String(totalChecks.length)],
+    ["Errors", String(totalChecks.filter((check) => check.level === "error").length)],
+    ["Warnings", String(totalChecks.filter((check) => check.level === "warning").length)]
+  ].map(([label, value]) => `
+    <div class="stat-surface">
+      <span>${label}</span>
+      <strong>${value}</strong>
+    </div>
+  `).join("");
   healthChecks.innerHTML = (server.health?.checks || []).map((check) => `
     <div class="list-row">
       <div>
@@ -763,21 +887,41 @@ function renderBackups(server, isRunning) {
     : "Scheduled backups are currently disabled.";
   backupsList.innerHTML = (server.backups || []).length
     ? server.backups.map((backup) => `
-      <div class="list-row">
+      <div class="list-row backup-row ${backup.id === state.selectedBackupId ? "selected" : ""}" data-backup-id="${backup.id}">
         <div>
           <strong>${backup.id}</strong>
           <div class="server-meta">${formatTime(backup.createdAt)}${backup.note ? ` · ${backup.note}` : ""}</div>
-          <div class="server-meta">${backup.path}</div>
+          <div class="server-meta">${backup.worldName || "world"} · ${formatBytes(backup.sizeBytes)} · ${backup.fileCount || 0} files</div>
         </div>
         <div class="backup-actions">
           <span class="runtime-badge">${backup.sourceState}</span>
-          <button type="button" class="secondary-button restore-backup-button" data-backup-id="${backup.id}" ${isRunning ? "disabled" : ""}>Restore</button>
+          <button type="button" class="secondary-button select-backup-button" data-backup-id="${backup.id}">Preview</button>
         </div>
       </div>
     `).join("")
     : `<div class="empty-state">No backups yet.</div>`;
+  const selectedBackup = (server.backups || []).find((backup) => backup.id === state.selectedBackupId) || server.backups?.[0] || null;
+  state.selectedBackupId = selectedBackup?.id || "";
+  backupDetail.innerHTML = selectedBackup
+    ? [
+        ["Created", formatTime(selectedBackup.createdAt)],
+        ["World", selectedBackup.worldName || "world"],
+        ["Snapshot", `${formatBytes(selectedBackup.sizeBytes)} · ${selectedBackup.fileCount || 0} files`],
+        ["Source", selectedBackup.sourceState],
+        ["Version", `${selectedBackup.loader || server.loader} · ${selectedBackup.minecraftVersion || server.minecraftVersion}`],
+        ["Note", selectedBackup.note || "No note recorded"]
+      ].map(([label, value]) => `
+        <div class="list-row compact-row">
+          <strong>${label}</strong>
+          <span class="server-meta">${value}</span>
+        </div>
+      `).join("")
+    : `<div class="empty-state">Select a backup to preview its restore scope.</div>`;
+  confirmRestoreButton.disabled = !selectedBackup || isRunning;
+  confirmRestoreButton.dataset.backupId = selectedBackup?.id || "";
 }
 
+// Present activity as an operational timeline so changes read like recent server history.
 function renderActivity(server, isRunning) {
   activityTitle.textContent = `Activity · ${server.name}`;
   activityRuntime.textContent = isRunning ? "Tracking" : "History";
@@ -785,12 +929,15 @@ function renderActivity(server, isRunning) {
   activityPanel.hidden = false;
   activityList.innerHTML = (server.activity || []).length
     ? server.activity.map((entry) => `
-      <div class="list-row">
+      <div class="activity-entry">
+        <div class="activity-marker"></div>
+        <div class="list-row">
         <div>
           <strong>${entry.message}</strong>
           <div class="server-meta">${formatTime(entry.at)}</div>
         </div>
         <span class="runtime-badge">${entry.type}</span>
+      </div>
       </div>
     `).join("")
     : `<div class="empty-state">No activity yet.</div>`;
@@ -967,12 +1114,23 @@ function renderSelectedServer() {
     filesPanel.hidden = true;
     filesTitle.textContent = "Select a server";
     filesRuntime.textContent = "No server";
+    // Reset derived UI so the last selected server does not leak into empty states.
+    overviewHeroMeta.innerHTML = "";
+    overviewRecommendations.innerHTML = "";
+    healthOverviewCards.innerHTML = "";
+    consoleInsightBar.innerHTML = "";
+    backupDetail.innerHTML = `<div class="empty-state">Select a backup to preview its restore scope.</div>`;
+    confirmRestoreButton.disabled = true;
+    confirmRestoreButton.dataset.backupId = "";
     state.selectedModProjectIds = [];
     state.modUpdates = [];
     state.fileBrowserPath = "";
     state.openFilePath = "";
+    state.selectedBackupId = "";
+    state.consoleDisplayOverride = null;
     fileEditor.value = "";
     fileEditorLabel.textContent = "Select a text file to edit it here.";
+    consoleOutput.textContent = "";
     renderModResults();
     renderModUpdates();
     return;
@@ -1060,6 +1218,8 @@ async function refreshSelectedServer(options = {}) {
     return;
   }
   try {
+    // Reset temporary console view overrides whenever fresh runtime data arrives.
+    state.consoleDisplayOverride = null;
     state.selectedServer = await api(`/api/servers/${state.selectedServerId}`);
     renderSelectedServer();
     if (state.selectedServerId && state.activeMenu === "files") {
@@ -1842,11 +2002,49 @@ commandInput.addEventListener("keydown", (event) => {
   }
 });
 
+consoleSearchInput.addEventListener("input", () => {
+  // Search only trims the visible console view and never mutates the server-side log history.
+  state.consoleSearch = consoleSearchInput.value;
+  state.consoleDisplayOverride = null;
+  renderConsoleOutputFromServer(state.selectedServer);
+});
+
 modSearchInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
     searchMods();
   }
+});
+
+copyConsoleButton.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(consoleOutput.textContent || "");
+    setStatus("Copied the visible console output.", "status-success");
+  } catch (error) {
+    setStatus("Clipboard access was blocked in this browser.", "status-error");
+  }
+});
+
+downloadConsoleButton.addEventListener("click", () => {
+  const lines = consoleOutput.textContent || "";
+  const blob = new Blob([lines], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const name = state.selectedServer?.name || "server";
+  link.href = url;
+  link.download = `${name.replace(/[^a-z0-9-_]+/gi, "-").toLowerCase() || "server"}-console.log`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  setStatus("Downloaded the visible console output.", "status-success");
+});
+
+clearConsoleViewButton.addEventListener("click", () => {
+  // Clear only the current client-side view so polling can repopulate it with fresh lines.
+  state.consoleDisplayOverride = [];
+  renderConsoleOutputFromServer(state.selectedServer);
+  setStatus("Cleared the current console view.", "status-success");
 });
 
 for (const button of document.querySelectorAll(".console-filter-button")) {
@@ -1898,11 +2096,28 @@ playersList.addEventListener("click", (event) => {
 });
 
 backupsList.addEventListener("click", (event) => {
-  const button = event.target.closest(".restore-backup-button");
-  if (!button) {
+  const button = event.target.closest(".select-backup-button");
+  const row = event.target.closest(".backup-row");
+  const backupId = button?.dataset.backupId || row?.dataset.backupId || "";
+  if (!backupId) {
     return;
   }
-  restoreBackup(button.dataset.backupId);
+  // Backup selection is a preview step so restore stays deliberate and reversible.
+  state.selectedBackupId = backupId;
+  if (state.selectedServer) {
+    renderBackups(state.selectedServer, state.selectedServer.runtime?.runtimeState === "running");
+  }
+});
+
+confirmRestoreButton.addEventListener("click", () => {
+  const backupId = confirmRestoreButton.dataset.backupId;
+  if (!backupId) {
+    return;
+  }
+  if (!window.confirm(`Restore ${backupId}? This replaces the current server files with that backup snapshot.`)) {
+    return;
+  }
+  restoreBackup(backupId);
 });
 
 fileList.addEventListener("click", (event) => {

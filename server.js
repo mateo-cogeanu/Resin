@@ -850,6 +850,30 @@ async function pruneBackups(serverId, retention) {
   }
 }
 
+// Measure a backup source tree before writing the manifest so the UI can preview restore size and scope.
+async function measureDirectorySnapshot(rootPath) {
+  const entries = await fs.readdir(rootPath, { withFileTypes: true });
+  let fileCount = 0;
+  let sizeBytes = 0;
+
+  for (const entry of entries) {
+    const absolute = path.join(rootPath, entry.name);
+    if (entry.isDirectory()) {
+      const nested = await measureDirectorySnapshot(absolute);
+      fileCount += nested.fileCount;
+      sizeBytes += nested.sizeBytes;
+      continue;
+    }
+    if (entry.isFile()) {
+      const stat = await fs.stat(absolute);
+      fileCount += 1;
+      sizeBytes += stat.size;
+    }
+  }
+
+  return { fileCount, sizeBytes };
+}
+
 async function readServerProperties(server) {
   const filePath = path.join(server.path, "server.properties");
   let content = "";
@@ -1254,7 +1278,13 @@ async function listBackups(serverId) {
         path: backupPath,
         createdAt: manifest?.createdAt || stat.mtime.toISOString(),
         note: manifest?.note || "",
-        sourceState: manifest?.sourceState || "unknown"
+        sourceState: manifest?.sourceState || "unknown",
+        worldName: manifest?.worldName || "",
+        motd: manifest?.motd || "",
+        fileCount: Number(manifest?.fileCount || 0),
+        sizeBytes: Number(manifest?.sizeBytes || 0),
+        loader: manifest?.loader || "",
+        minecraftVersion: manifest?.minecraftVersion || ""
       });
     }
     return backups.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -1267,6 +1297,7 @@ async function createBackup(serverId, note = "") {
   const server = await readServerRecord(serverId);
   const runtime = SERVER_PROCESSES.get(serverId);
   const sourceState = runtime?.state === "running" ? "running" : "stopped";
+  const properties = await readServerProperties(server);
   if (runtime?.state === "running") {
     runtime.logs.push({
       at: new Date().toISOString(),
@@ -1284,6 +1315,8 @@ async function createBackup(serverId, note = "") {
   await fs.mkdir(backupPath, { recursive: true });
 
   const entries = await fs.readdir(server.path, { withFileTypes: true });
+  let fileCount = 0;
+  let sizeBytes = 0;
   for (const entry of entries) {
     if (entry.name === ".DS_Store") {
       continue;
@@ -1292,7 +1325,14 @@ async function createBackup(serverId, note = "") {
     const target = path.join(backupPath, entry.name);
     if (entry.isDirectory()) {
       await fs.cp(source, target, { recursive: true });
+      // Capture lightweight snapshot metadata so the UI can preview backup weight and scope before restore.
+      const nested = await measureDirectorySnapshot(source);
+      fileCount += nested.fileCount;
+      sizeBytes += nested.sizeBytes;
     } else if (entry.isFile()) {
+      const stat = await fs.stat(source);
+      fileCount += 1;
+      sizeBytes += stat.size;
       await fs.copyFile(source, target);
     }
   }
@@ -1301,7 +1341,13 @@ async function createBackup(serverId, note = "") {
     id: backupId,
     createdAt: new Date().toISOString(),
     note: String(note || "").trim(),
-    sourceState
+    sourceState,
+    worldName: properties["level-name"] || "world",
+    motd: properties.motd || server.motd || server.name,
+    fileCount,
+    sizeBytes,
+    loader: server.loader,
+    minecraftVersion: server.minecraftVersion
   });
 
   await appendActivity(serverId, "backup", "Created a server backup.", {

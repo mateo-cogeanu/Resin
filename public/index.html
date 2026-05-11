@@ -284,6 +284,7 @@
                   <h2>Health Center</h2>
                   <p id="healthSummary">Resin checks the current server state and surfaces the items that usually break startup or maintenance.</p>
                 </div>
+                <div id="healthOverviewCards" class="health-card-grid"></div>
                 <div id="healthChecks" class="stack-list"></div>
               </section>
             </div>
@@ -306,6 +307,7 @@
                   <h2>Server Status</h2>
                   <p id="overviewSummary">Resin keeps the main server state in one place so you can tell whether it is actually ready to run.</p>
                 </div>
+                <div id="overviewHeroMeta" class="hero-meta-row"></div>
 
                 <div class="hero-actions" id="overviewQuickActions">
                   <button id="overviewStartButton" type="button" class="action-button action-button-green">Start</button>
@@ -316,6 +318,13 @@
                 </div>
 
                 <div id="overviewStats" class="stat-grid overview-stat-grid"></div>
+                <div class="subsection">
+                  <div class="subsection-head">
+                    <h3>Next Best Steps</h3>
+                    <span class="runtime-badge runtime-badge-blue">Guided</span>
+                  </div>
+                  <div id="overviewRecommendations" class="stack-list"></div>
+                </div>
               </section>
 
               <section class="panel-card overview-readiness-card">
@@ -393,11 +402,14 @@
                     <button type="button" class="secondary-button console-filter-button" data-filter="errors">Errors</button>
                     <button type="button" class="secondary-button console-filter-button" data-filter="commands">Commands</button>
                   </div>
+                  <input id="consoleSearchInput" type="text" class="console-search-input" placeholder="Search visible console lines" />
                   <label class="toggle toggle-compact">
                     <input id="consoleAutoscroll" type="checkbox" checked />
                     <span>Auto-scroll</span>
                   </label>
                 </div>
+
+                <div id="consoleInsightBar" class="console-insight-bar"></div>
 
                 <pre id="consoleOutput" class="console-output"></pre>
 
@@ -406,6 +418,12 @@
                   <button id="sendCommandButton" type="button" class="icon-button">Send</button>
                   <button id="refreshServerButton" type="button" class="icon-button icon-button-muted">Refresh</button>
                 </label>
+
+                <div class="console-utility-row">
+                  <button id="copyConsoleButton" type="button" class="secondary-button">Copy visible log</button>
+                  <button id="downloadConsoleButton" type="button" class="secondary-button">Download visible log</button>
+                  <button id="clearConsoleViewButton" type="button" class="secondary-button">Clear view</button>
+                </div>
 
                 <div class="quick-command-row">
                   <button type="button" class="secondary-button quick-command-button" data-command="save-all">Save All</button>
@@ -699,6 +717,14 @@
               <aside class="side-rail">
                 <section class="panel-card compact-card">
                   <div class="panel-card-head panel-card-head-tight">
+                    <h2>Restore Preview</h2>
+                    <p>Inspect the selected snapshot before replacing live files.</p>
+                  </div>
+                  <div id="backupDetail" class="stack-list"></div>
+                  <button id="confirmRestoreButton" type="button" class="action-button action-button-blue" disabled>Restore selected backup</button>
+                </section>
+                <section class="panel-card compact-card">
+                  <div class="panel-card-head panel-card-head-tight">
                     <h2>Backup Notes</h2>
                     <p>Backups are stored outside the server folder.</p>
                   </div>
@@ -767,7 +793,7 @@
                   <h2>Server Activity</h2>
                   <p>Backups, settings saves, server actions, mod installs, and admin commands appear here.</p>
                 </div>
-                <div id="activityList" class="stack-list"></div>
+                <div id="activityList" class="activity-timeline"></div>
               </section>
             </div>
           </article>

@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-05-11
+
+### Dashboard Trust Pass
+- rebuilt the selected-server overview flow so the empty state now clears derived badges, recommendations, backup previews, and console insights instead of leaking data from the last selected server
+- added richer overview hero metadata so the main dashboard highlights readiness state, loader/version, Java choice, and online/offline mode in one compact row
+- added guided `Next Best Steps` recommendations to Overview so Resin can tell the operator what to do next when a server still needs installer prep, EULA acceptance, backups, or port cleanup
+- added summary cards to the `Health` screen so operators can see total checks, warnings, and blockers before reading the full check list
+
+### Console Quality of Life
+- added client-side console search for the currently visible log view without mutating the stored runtime log history
+- added a console insight strip that counts visible lines, joins, chat, warnings, and commands for the current filter/search view
+- added visible-log copy and download actions so console output can be exported without leaving the WebUI
+- added a non-destructive `Clear view` action that clears only the current client-side console surface and lets polling refill it with fresh lines
+- reset temporary console view overrides whenever Resin refreshes server detail so filtered/cleared views never get stuck across normal polling
+
+### Backups UX
+- expanded backup manifests and list payloads to include world name, MOTD, file count, snapshot size, loader, and Minecraft version metadata
+- added recursive snapshot measurement so newly created backups record file count and total byte size alongside the copied folder
+- replaced one-click restore rows with a deliberate preview-first backup selection flow in the WebUI
+- added a dedicated backup preview card with created time, world, snapshot size, source state, version, and note before restore confirmation
+- added a second restore confirmation step so restoring a snapshot stays intentional and clearly scoped
+
+### Activity and Visual Polish
+- converted the Activity screen from a plain stacked list into a timeline-style layout with visual markers between entries
+- added dedicated layout styling for overview hero badges, health summary cards, console insights, console utility actions, selected backup rows, and activity timeline entries
+- kept the new dashboard elements responsive so the expanded panels still collapse cleanly on narrower screens
+
+### Verification
+- verified `node --check server.js`
+- verified `node --check public/app.js`
+- verified Resin boots locally again at `http://localhost:3000`
+- verified backup creation now records preview metadata including snapshot size and file count on a disposable Fabric test server
+- verified server detail now includes the richer overview, health, and backup data used by the new dashboard surfaces
+- deleted the disposable `ui-qa` verification server after testing so inventory returned to a clean state
+
 ## 2026-05-03
 
 ### Core Management Expansion
