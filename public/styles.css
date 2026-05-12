@@ -21,6 +21,9 @@
   --radius-xl: 24px;
   --radius-lg: 18px;
   --radius-md: 12px;
+  --content-max: 88rem;
+  --rail-width: 22rem;
+  --section-gap: 1.35rem;
 }
 
 :root[data-theme="harbor"] {
@@ -346,7 +349,9 @@ body {
   font-size: 0.8rem;
 }
 
+/* Center each workspace on a shared canvas so panels stop feeling randomly scattered. */
 .content-panels {
+  display: grid;
   padding: 1.65rem 1.75rem 2.2rem;
 }
 
@@ -357,15 +362,30 @@ body {
 
 .content-panel.active {
   display: grid;
-  gap: 1.1rem;
+  gap: var(--section-gap);
+  width: min(100%, var(--content-max));
+  margin-inline: auto;
 }
 
+/* Promote screen titles into a real header surface so every page starts with the same rhythm. */
 .workspace-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 0.2rem;
+  padding: 1rem 1.15rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(125, 165, 255, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012)),
+    rgba(8, 12, 24, 0.16);
+  box-shadow: 0 18px 40px rgba(5, 8, 18, 0.18);
+}
+
+.workspace-title > div:first-child {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
 }
 
 .workspace-title h1,
@@ -388,24 +408,24 @@ body {
 
 .workspace-grid {
   display: grid;
-  gap: 1.2rem;
+  gap: var(--section-gap);
   align-items: start;
 }
 
 .workspace-grid-create {
-  grid-template-columns: minmax(0, 1.7fr) 25rem;
+  grid-template-columns: minmax(0, 1.55fr) minmax(20rem, var(--rail-width));
 }
 
 .workspace-grid-manage,
 .workspace-grid-mods,
 .workspace-grid-files,
 .workspace-grid-players,
-.workspace-grid-health,
 .workspace-grid-settings,
 .workspace-grid-backups {
-  grid-template-columns: minmax(0, 1fr) 18rem;
+  grid-template-columns: minmax(0, 1.42fr) minmax(18rem, var(--rail-width));
 }
 
+.workspace-grid-health,
 .workspace-grid-activity {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -420,11 +440,13 @@ body {
   background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
+  box-shadow:
+    0 18px 48px rgba(5, 8, 18, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.015);
 }
 
 .panel-card {
-  padding: 1.35rem;
+  padding: 1.4rem;
 }
 
 .compact-card {
@@ -434,7 +456,7 @@ body {
 .panel-card-head {
   display: grid;
   gap: 0.35rem;
-  margin-bottom: 1.15rem;
+  margin-bottom: 1.1rem;
 }
 
 .panel-card-head p,
@@ -461,6 +483,7 @@ body {
   align-content: start;
   position: sticky;
   top: 6.6rem;
+  padding-left: 0.2rem;
 }
 
 .create-form,
@@ -491,6 +514,7 @@ body {
   font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
+  margin-bottom: 0.15rem;
 }
 
 .preset-grid,
@@ -508,7 +532,14 @@ body {
 }
 
 .inventory-toolbar {
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.95rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.025);
   margin-bottom: 1rem;
 }
 
@@ -516,12 +547,12 @@ body {
   align-items: center;
   color: var(--muted);
   font-size: 0.84rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.2rem;
 }
 
 .overview-layout {
   display: grid;
-  gap: 1.2rem;
+  gap: var(--section-gap);
   align-items: start;
 }
 
@@ -549,8 +580,8 @@ body {
 
 .overview-secondary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
-  gap: 1.2rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--section-gap);
   align-items: start;
 }
 
@@ -952,6 +983,10 @@ button[type="submit"]:hover,
 
 .hero-actions {
   margin-bottom: 1.2rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.045);
+  background: rgba(255, 255, 255, 0.022);
 }
 
 .console-search-input {
@@ -1068,6 +1103,10 @@ button[type="submit"]:hover,
 .info-box,
 .empty-state {
   padding: 1rem;
+}
+
+.empty-state {
+  min-width: 0;
 }
 
 .players-list {
@@ -1361,7 +1400,7 @@ button[type="submit"]:hover,
   }
 
   .overview-secondary-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1398,10 +1437,16 @@ button[type="submit"]:hover,
     grid-template-columns: 1fr;
   }
 
+  .inventory-toolbar,
+  .overview-secondary-grid {
+    grid-template-columns: 1fr;
+  }
+
   .side-rail,
   .manager-sidebar {
     position: relative;
     top: 0;
+    padding-left: 0;
   }
 
   .console-input-row,

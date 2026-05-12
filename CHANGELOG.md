@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-05-12
+
+### Workspace Structure Pass
+- rebuilt the shared workspace shell so every screen now renders inside the same centered content canvas instead of expanding with inconsistent widths
+- turned the per-screen title row into a real header surface with consistent spacing, border treatment, and visual hierarchy
+- introduced shared layout variables for content width, rail width, and section spacing so panel alignment stays consistent across screens
+
+### Screen Organization
+- rebalanced the main create/manage/files/players/settings/backups/mods grids so the primary work area and secondary rail feel deliberately proportioned instead of loosely split
+- normalized the health and activity screens to full-width single-column layouts because they do not use a supporting rail
+- tightened the overview dashboard structure by giving its lower cards a stable three-column desktop grid and cleaner responsive collapse points
+
+### Control Surface Cleanup
+- turned the inventory toolbar into a structured control bar instead of a stacked loose group of search and filter controls
+- wrapped overview quick actions inside their own surface so primary actions read as one grouped control area
+- softened card shadows and spacing so panels feel part of one system instead of separate floating objects
+- added small spacing and alignment adjustments to section labels, side rails, and empty states so panels read more predictably at a glance
+
+### Verification
+- verified the updated layout styles are being served by Resin at `http://localhost:3000`
+- inspected the rendered CSS response for the new shared workspace rules and responsive grid changes before shipping
+- kept the existing frontend behavior intact while limiting this pass to layout and visual structure changes
+
 ## 2026-05-11
 
 ### Dashboard Trust Pass
