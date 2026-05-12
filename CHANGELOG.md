@@ -2,6 +2,27 @@
 
 ## 2026-05-12
 
+### Theme Chrome Fixes
+- switched the left sidebar shell from the old hardcoded blue-tinted background to the active theme palette variables
+- switched the top bar background and active-server pill to palette-aware surfaces so theme changes now affect the full app chrome instead of only the inner content cards
+- updated sidebar labels and active navigation highlights to derive their accent color from the current theme instead of a fixed cyan value
+
+### Scroll Model Correction
+- removed the desktop-only overflow trap that forced Resin into a constrained anti-scrolling shell
+- restored normal document scrolling so screens no longer feel boxed in by nested internal scroll regions during everyday use
+- removed the extra viewport-locking rules from active panels, workspaces, and side rails so pages can breathe again without clipped content
+
+### Brand Cleanup
+- removed the fake boxed treatment around the top-left Resin icon
+- increased the sidebar icon size slightly so the real brand mark carries the header without needing a synthetic background frame
+
+### Verification
+- verified the live `styles.css` response now exposes normal body scrolling again
+- verified the served stylesheet includes palette-aware sidebar and top bar backgrounds driven by theme variables
+- reviewed the final CSS diff to confirm the icon frame removal, larger brand mark, and desktop scroll-behavior rollback before shipping
+
+## 2026-05-12
+
 ### Branding and Favicon
 - added the provided `icon.png` to the served web assets and wired it in as Resin's browser favicon
 - replaced the old text-only sidebar badge with the real Resin icon so the interface branding matches the project asset set

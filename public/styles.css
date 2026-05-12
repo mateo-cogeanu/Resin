@@ -159,7 +159,7 @@ body {
     radial-gradient(circle at bottom right, color-mix(in srgb, var(--green) 14%, transparent), transparent 28rem),
     linear-gradient(180deg, color-mix(in srgb, var(--bg) 78%, black) 0%, var(--bg) 100%);
   overflow-x: hidden;
-  overflow-y: hidden;
+  overflow-y: auto;
 }
 
 .background-glow {
@@ -197,7 +197,12 @@ body {
   flex-direction: column;
   gap: 1.25rem;
   padding: 1.25rem 1rem;
-  background: linear-gradient(180deg, rgba(30, 39, 64, 0.96) 0%, rgba(24, 34, 56, 0.98) 100%);
+  /* Theme the main navigation shell directly from the active palette instead of a fixed blue overlay. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--sidebar) 94%, white 2%) 0%,
+    color-mix(in srgb, var(--sidebar-2) 96%, black 4%) 100%
+  );
   border-right: 1px solid var(--border);
   box-shadow:
     inset -1px 0 0 rgba(255, 255, 255, 0.02),
@@ -219,14 +224,12 @@ body {
 }
 
 .sidebar-logo {
-  width: 2.65rem;
-  height: 2.65rem;
-  border-radius: 0.8rem;
+  width: 3.15rem;
+  height: 3.15rem;
+  border-radius: 0;
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
 }
 
 .sidebar-logo img {
@@ -257,7 +260,7 @@ body {
 
 .sidebar-group-label {
   padding: 0.2rem 0.45rem;
-  color: #65c3ff;
+  color: color-mix(in srgb, var(--blue) 78%, white 16%);
   font-size: 0.7rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -277,7 +280,11 @@ body {
 
 .sidebar-link.active {
   color: var(--text);
-  background: linear-gradient(90deg, rgba(42, 168, 255, 0.2), rgba(42, 168, 255, 0.07));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--blue) 24%, transparent),
+    color-mix(in srgb, var(--blue-2) 8%, transparent)
+  );
   box-shadow: inset 3px 0 0 var(--blue);
 }
 
@@ -323,8 +330,6 @@ body {
   grid-template-rows: auto 1fr;
   min-width: 0;
   min-height: 100vh;
-  height: 100vh;
-  overflow: hidden;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0));
 }
 
@@ -334,7 +339,12 @@ body {
   justify-content: space-between;
   gap: 1.25rem;
   padding: 0.95rem 1.35rem;
-  background: linear-gradient(180deg, rgba(33, 43, 69, 0.94) 0%, rgba(27, 35, 57, 0.92) 100%);
+  /* Keep the top status rail palette-aware so every theme reaches the app chrome, not just the content cards. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-2) 92%, white 2%) 0%,
+    color-mix(in srgb, var(--bg-3) 88%, black 10%) 100%
+  );
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
@@ -348,7 +358,7 @@ body {
   min-width: 18rem;
   padding: 0.7rem 0.95rem;
   border-radius: 0.95rem;
-  background: rgba(9, 14, 24, 0.32);
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
   border: 1px solid var(--border);
 }
 
@@ -493,23 +503,17 @@ body {
 /* Center each workspace on a shared canvas so panels stop feeling randomly scattered. */
 .content-panels {
   display: grid;
-  min-height: 0;
-  overflow: hidden;
   padding: 1rem 1.25rem 1.25rem;
 }
 
 .content-panel {
   display: none;
   align-content: start;
-  min-height: 0;
 }
 
 .content-panel.active {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
   gap: var(--section-gap);
-  min-height: 0;
-  overflow: hidden;
   width: min(100%, var(--content-max));
   margin-inline: auto;
 }
@@ -557,8 +561,6 @@ body {
   display: grid;
   gap: var(--section-gap);
   align-items: start;
-  min-height: 0;
-  overflow: hidden;
 }
 
 .workspace-grid-create {
@@ -580,29 +582,6 @@ body {
 }
 
 /* Keep desktop screens inside the viewport by scrolling their working surfaces instead of the whole page. */
-.content-panel.active > .panel-card,
-.content-panel.active > .workspace-grid,
-.content-panel.active > .overview-layout,
-.content-panel.active > .empty-state {
-  min-height: 0;
-}
-
-.workspace-grid > section.panel-card,
-.workspace-grid > aside.side-rail,
-.inventory-panel,
-.overview-layout {
-  min-height: 0;
-}
-
-.workspace-grid > section.panel-card,
-.inventory-panel,
-.overview-layout,
-.workspace-grid-health > section.panel-card,
-.workspace-grid-activity > section.panel-card {
-  overflow: auto;
-  scrollbar-gutter: stable;
-}
-
 .panel-card,
 .info-box,
 .server-row,
@@ -657,9 +636,6 @@ body {
   position: sticky;
   top: 6.6rem;
   padding-left: 0.2rem;
-  min-height: 0;
-  overflow: auto;
-  scrollbar-gutter: stable;
 }
 
 .create-form,
@@ -948,7 +924,7 @@ textarea:focus {
 }
 
 textarea {
-  min-height: 12rem;
+  min-height: 14rem;
   resize: vertical;
   font-family: "IBM Plex Mono", "IBM Plex Sans", monospace;
   line-height: 1.45;
@@ -1195,8 +1171,7 @@ button[type="submit"]:hover,
 .main-console-card {
   display: grid;
   grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto auto;
-  min-height: 0;
-  height: 100%;
+  min-height: 34rem;
 }
 
 .console-insight-bar {
@@ -1292,7 +1267,7 @@ button[type="submit"]:hover,
 }
 
 #fileEditor {
-  min-height: 18rem;
+  min-height: 20rem;
 }
 
 .stat-grid,
@@ -1582,10 +1557,6 @@ button[type="submit"]:hover,
 }
 
 @media (max-width: 840px) {
-  body {
-    overflow-y: auto;
-  }
-
   .app-shell {
     grid-template-columns: 1fr;
     min-height: auto;
@@ -1609,7 +1580,6 @@ button[type="submit"]:hover,
 
   .content-panels {
     padding: 1rem 1rem 1.4rem;
-    overflow: visible;
   }
 
   .loader-grid,
@@ -1629,20 +1599,6 @@ button[type="submit"]:hover,
     position: relative;
     top: 0;
     padding-left: 0;
-    overflow: visible;
-  }
-
-  .app-stage,
-  .content-panel.active,
-  .workspace-grid,
-  .inventory-panel,
-  .overview-layout,
-  .workspace-grid > section.panel-card,
-  .workspace-grid-health > section.panel-card,
-  .workspace-grid-activity > section.panel-card {
-    height: auto;
-    min-height: 0;
-    overflow: visible;
   }
 
   .console-input-row,
