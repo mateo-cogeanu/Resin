@@ -2,6 +2,23 @@
 
 ## 2026-05-12
 
+### Theme Leakage Cleanup
+- replaced the remaining hardcoded cool-blue accent surfaces across the live app shell with theme-variable-driven `color-mix(...)` treatments so active themes now flow through hover states, selected rows, focus rings, connection panels, backup selections, activity markers, and runtime badges
+- updated the floating background glows, inventory toolbar accents, loader cards, server rows, and shared button states so they inherit the active Resin palette instead of leaking older cyan/blue values from earlier styling passes
+- retuned text inputs, selects, placeholders, and focus outlines to use the same palette system as the surrounding chrome, which removes the last obvious pockets of fixed blue inside forms and management panels
+
+### Console Growth And Scroll Fit
+- changed the main console card away from the old rigid fill-the-panel behavior so the log can now grow naturally as new output arrives instead of feeling artificially pinned to one large block size
+- added a viewport-aware `max-height` to the console output area so the log expands until it reaches a sensible screen-based limit, then uses its own internal scrollbar without pushing the command entry off-screen
+- kept the console input docked immediately after the log surface while making the built-in scroll area stable, which should feel much more natural on different screen sizes during long-running sessions
+
+### Verification
+- verified the live served `styles.css` includes the new theme-driven accent mixes and no longer relies on the old fixed cool-blue values for the affected shared surfaces
+- verified the live console stylesheet now exposes the new viewport-aware `max-height` and internal scroll behavior for the output pane
+- reviewed the final CSS diff to confirm that this pass stays scoped to theme leakage cleanup and console sizing behavior without changing application logic
+
+## 2026-05-12
+
 ### Theme Chrome Fixes
 - switched the left sidebar shell from the old hardcoded blue-tinted background to the active theme palette variables
 - switched the top bar background and active-server pill to palette-aware surfaces so theme changes now affect the full app chrome instead of only the inner content cards
