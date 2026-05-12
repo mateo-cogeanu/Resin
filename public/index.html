@@ -248,16 +248,26 @@
                 <h2>Available Servers</h2>
                 <p>Click any server card to jump into console and mods management.</p>
               </div>
-              <div class="inventory-toolbar">
-                <input id="inventorySearch" type="text" placeholder="Search by name, loader, version, or Java" />
-                <div class="inventory-filter-row">
-                  <button type="button" class="secondary-button inventory-filter-button active" data-filter="all">All</button>
-                  <button type="button" class="secondary-button inventory-filter-button" data-filter="running">Running</button>
-                  <button type="button" class="secondary-button inventory-filter-button" data-filter="ready">Ready</button>
-                  <button type="button" class="secondary-button inventory-filter-button" data-filter="modded">Modded</button>
+              <!-- Group search, filters, and summary into one fleet-browsing block so Inventory reads as a single workflow. -->
+              <div class="section-shell section-shell-toolbar">
+                <div class="section-headline">
+                  <div>
+                    <div class="section-tag">Browse Fleet</div>
+                    <h3>Search and filter your servers</h3>
+                  </div>
+                  <p>Start here, then open the server you want to manage.</p>
                 </div>
+                <div class="inventory-toolbar">
+                  <input id="inventorySearch" type="text" placeholder="Search by name, loader, version, or Java" />
+                  <div class="inventory-filter-row">
+                    <button type="button" class="secondary-button inventory-filter-button active" data-filter="all">All</button>
+                    <button type="button" class="secondary-button inventory-filter-button" data-filter="running">Running</button>
+                    <button type="button" class="secondary-button inventory-filter-button" data-filter="ready">Ready</button>
+                    <button type="button" class="secondary-button inventory-filter-button" data-filter="modded">Modded</button>
+                  </div>
+                </div>
+                <div id="inventorySummary" class="inventory-summary"></div>
               </div>
-              <div id="inventorySummary" class="inventory-summary"></div>
               <div id="serverList" class="server-list"></div>
             </section>
           </article>
@@ -349,14 +359,19 @@
                   <h2>Server Status</h2>
                   <p id="overviewSummary">Resin keeps the main server state in one place so you can tell whether it is actually ready to run.</p>
                 </div>
-                <div id="overviewHeroMeta" class="hero-meta-row"></div>
-
-                <div class="hero-actions" id="overviewQuickActions">
-                  <button id="overviewStartButton" type="button" class="action-button action-button-green">Start</button>
-                  <button id="overviewStopButton" type="button" class="action-button action-button-red">Stop</button>
-                  <button id="overviewConsoleButton" type="button" class="secondary-button">Open Console</button>
-                  <button id="overviewPlayersButton" type="button" class="secondary-button">Open Players</button>
-                  <button id="overviewSettingsButton" type="button" class="secondary-button">Open Settings</button>
+                <!-- Keep primary state and quick actions in one command deck so Overview points to the next obvious action. -->
+                <div class="overview-command-deck">
+                  <div>
+                    <div class="section-tag">Primary State</div>
+                    <div id="overviewHeroMeta" class="hero-meta-row"></div>
+                  </div>
+                  <div class="hero-actions" id="overviewQuickActions">
+                    <button id="overviewStartButton" type="button" class="action-button action-button-green">Start</button>
+                    <button id="overviewStopButton" type="button" class="action-button action-button-red">Stop</button>
+                    <button id="overviewConsoleButton" type="button" class="secondary-button">Open Console</button>
+                    <button id="overviewPlayersButton" type="button" class="secondary-button">Open Players</button>
+                    <button id="overviewSettingsButton" type="button" class="secondary-button">Open Settings</button>
+                  </div>
                 </div>
 
                 <div id="overviewStats" class="stat-grid overview-stat-grid"></div>
@@ -586,94 +601,136 @@
                 </div>
 
                 <form id="settingsForm" class="create-form">
-                  <div class="field-grid">
-                    <label class="field">
-                      <span>MOTD</span>
-                      <input id="settingMotd" type="text" />
-                    </label>
-                    <label class="field">
-                      <span>Level name</span>
-                      <input id="settingLevelName" type="text" />
-                    </label>
-                    <label class="field">
-                      <span>Port</span>
-                      <input id="settingPort" type="number" min="1024" />
-                    </label>
-                    <label class="field">
-                      <span>Max players</span>
-                      <input id="settingMaxPlayers" type="number" min="1" />
-                    </label>
-                    <label class="field">
-                      <span>Difficulty</span>
-                      <select id="settingDifficulty">
-                        <option value="peaceful">Peaceful</option>
-                        <option value="easy">Easy</option>
-                        <option value="normal">Normal</option>
-                        <option value="hard">Hard</option>
-                      </select>
-                    </label>
-                    <label class="field">
-                      <span>Gamemode</span>
-                      <select id="settingGamemode">
-                        <option value="survival">Survival</option>
-                        <option value="creative">Creative</option>
-                        <option value="adventure">Adventure</option>
-                        <option value="spectator">Spectator</option>
-                      </select>
-                    </label>
-                    <label class="field">
-                      <span>View distance</span>
-                      <input id="settingViewDistance" type="number" min="2" />
-                    </label>
-                    <label class="field">
-                      <span>Simulation distance</span>
-                      <input id="settingSimulationDistance" type="number" min="2" />
-                    </label>
-                    <label class="field">
-                      <span>Spawn protection</span>
-                      <input id="settingSpawnProtection" type="number" min="0" />
-                    </label>
+                  <!-- Separate guided properties into clear blocks so settings work feels structured instead of blended together. -->
+                  <div class="settings-block">
+                    <div class="section-headline">
+                      <div>
+                        <div class="section-tag">Core Properties</div>
+                        <h3>Gameplay and join settings</h3>
+                      </div>
+                      <p>Adjust the values most owners reach for first.</p>
+                    </div>
+                    <div class="field-grid">
+                      <label class="field">
+                        <span>MOTD</span>
+                        <input id="settingMotd" type="text" />
+                      </label>
+                      <label class="field">
+                        <span>Level name</span>
+                        <input id="settingLevelName" type="text" />
+                      </label>
+                      <label class="field">
+                        <span>Port</span>
+                        <input id="settingPort" type="number" min="1024" />
+                      </label>
+                      <label class="field">
+                        <span>Max players</span>
+                        <input id="settingMaxPlayers" type="number" min="1" />
+                      </label>
+                      <label class="field">
+                        <span>Difficulty</span>
+                        <select id="settingDifficulty">
+                          <option value="peaceful">Peaceful</option>
+                          <option value="easy">Easy</option>
+                          <option value="normal">Normal</option>
+                          <option value="hard">Hard</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Gamemode</span>
+                        <select id="settingGamemode">
+                          <option value="survival">Survival</option>
+                          <option value="creative">Creative</option>
+                          <option value="adventure">Adventure</option>
+                          <option value="spectator">Spectator</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>View distance</span>
+                        <input id="settingViewDistance" type="number" min="2" />
+                      </label>
+                      <label class="field">
+                        <span>Simulation distance</span>
+                        <input id="settingSimulationDistance" type="number" min="2" />
+                      </label>
+                      <label class="field">
+                        <span>Spawn protection</span>
+                        <input id="settingSpawnProtection" type="number" min="0" />
+                      </label>
+                    </div>
                   </div>
 
-                  <div class="toggle-row">
-                    <label class="toggle">
-                      <input id="settingOnlineMode" type="checkbox" />
-                      <span>Online mode</span>
-                    </label>
-                    <label class="toggle">
-                      <input id="settingAllowFlight" type="checkbox" />
-                      <span>Allow flight</span>
-                    </label>
-                    <label class="toggle">
-                      <input id="settingPvp" type="checkbox" />
-                      <span>PVP enabled</span>
-                    </label>
-                    <label class="toggle">
-                      <input id="settingWhitelist" type="checkbox" />
-                      <span>Whitelist enforced</span>
-                    </label>
+                  <div class="settings-block">
+                    <div class="section-headline">
+                      <div>
+                        <div class="section-tag">Access Rules</div>
+                        <h3>Player entry and world behavior</h3>
+                      </div>
+                      <p>Toggle the safety and gameplay switches that affect who can join.</p>
+                    </div>
+                    <div class="toggle-row">
+                      <label class="toggle">
+                        <input id="settingOnlineMode" type="checkbox" />
+                        <span>Online mode</span>
+                      </label>
+                      <label class="toggle">
+                        <input id="settingAllowFlight" type="checkbox" />
+                        <span>Allow flight</span>
+                      </label>
+                      <label class="toggle">
+                        <input id="settingPvp" type="checkbox" />
+                        <span>PVP enabled</span>
+                      </label>
+                      <label class="toggle">
+                        <input id="settingWhitelist" type="checkbox" />
+                        <span>Whitelist enforced</span>
+                      </label>
+                    </div>
                   </div>
 
-                  <div class="action-row">
-                    <button id="saveSettingsButton" type="submit">Save settings</button>
-                    <p id="settingsStatus" class="status-text">Settings load from the selected server.</p>
+                  <div class="settings-block">
+                    <div class="section-headline">
+                      <div>
+                        <div class="section-tag">Save</div>
+                        <h3>Apply guided changes</h3>
+                      </div>
+                      <p>Resin writes these values directly to `server.properties`.</p>
+                    </div>
+                    <div class="action-row">
+                      <button id="saveSettingsButton" type="submit">Save settings</button>
+                      <p id="settingsStatus" class="status-text">Settings load from the selected server.</p>
+                    </div>
                   </div>
                 </form>
 
-                <div class="form-section">
-                  <div class="form-section-title">Advanced</div>
+                <!-- Keep the raw editor isolated from guided controls because it serves a different level of editing. -->
+                <div class="settings-block">
+                  <div class="section-headline">
+                    <div>
+                      <div class="section-tag">Advanced</div>
+                      <h3>Full file editor</h3>
+                    </div>
+                    <p>Use this when you want to edit any property, not only the guided fields.</p>
+                  </div>
                   <label class="field">
                     <span>Full `server.properties` editor</span>
                     <textarea id="settingsRawEditor" rows="14" placeholder="server.properties will appear here"></textarea>
                   </label>
                   <div class="action-row">
                     <button id="saveRawSettingsButton" type="button" class="secondary-button">Save full file</button>
-                    <p class="status-text">Use this when you want to edit any property, not only the guided fields.</p>
+                    <p class="status-text">Advanced saves write the exact file content you see here.</p>
                   </div>
                 </div>
 
-                <div class="form-section">
-                  <div class="form-section-title">Runtime Profile</div>
+                <!-- Treat runtime tuning as its own block so launch settings do not compete with gameplay properties. -->
+                <div class="settings-block">
+                  <div class="section-headline">
+                    <div>
+                      <div class="section-tag">Runtime Profile</div>
+                      <h3>Launch memory and Java</h3>
+                    </div>
+                    <p>These values shape how Resin generates launchers for this server.</p>
+                  </div>
                   <div class="field-grid">
                     <label class="field">
                       <span>Memory</span>
@@ -793,17 +850,27 @@
                   <h2>File Browser</h2>
                   <p id="filesPathLabel">Browse server files and open supported text formats directly in Resin.</p>
                 </div>
-                <div class="mods-search-row">
-                  <button id="filesUpButton" type="button" class="secondary-button">Up</button>
-                  <input id="newFolderInput" type="text" placeholder="new-folder" />
-                  <button id="createFolderButton" type="button" class="secondary-button">Create folder</button>
-                  <input id="uploadFileInput" type="file" />
+                <!-- Wrap file actions and the list together so the browsing workflow stays anchored in one place. -->
+                <div class="section-shell files-browser-layout">
+                  <div class="section-headline">
+                    <div>
+                      <div class="section-tag">Filesystem</div>
+                      <h3>Browse, upload, and organize</h3>
+                    </div>
+                    <p>Jump through folders, create structure, and open files without leaving Resin.</p>
+                  </div>
+                  <div class="mods-search-row">
+                    <button id="filesUpButton" type="button" class="secondary-button">Up</button>
+                    <input id="newFolderInput" type="text" placeholder="new-folder" />
+                    <button id="createFolderButton" type="button" class="secondary-button">Create folder</button>
+                    <input id="uploadFileInput" type="file" />
+                  </div>
+                  <div id="fileList" class="stack-list"></div>
                 </div>
-                <div id="fileList" class="stack-list"></div>
               </section>
 
               <aside class="side-rail">
-                <section class="panel-card compact-card">
+                <section class="panel-card compact-card files-editor-card">
                   <div class="panel-card-head panel-card-head-tight">
                     <h2>Editor</h2>
                     <p id="fileEditorLabel">Select a text file to edit it here.</p>

@@ -2,6 +2,25 @@
 
 ## 2026-05-12
 
+### Workspace Structure Refinement
+- regrouped the `Inventory` controls into one explicit fleet-browsing surface so search, status filters, and the inventory summary now read as one workflow instead of separate floating fragments
+- rebuilt the `Overview` command area into a single primary-state deck that keeps server badges and start/stop/navigation actions together, which makes the next important action feel much more obvious
+- split `Settings` into distinct inner blocks for guided properties, access rules, save actions, raw file editing, and runtime tuning so the screen no longer feels like one long undifferentiated form
+- wrapped the `Files` controls into a dedicated browsing section and gave the editor its own stronger card identity so the browse-versus-edit workflow is easier to scan at a glance
+
+### Visual Hierarchy And Rhythm
+- added internal section shells with consistent borders, padding, and headings so screen-level structure comes from repeatable layout rules rather than ad hoc card placement
+- promoted card headers with their own divider treatment and softened the duplicated emphasis from multiple competing highlight surfaces, which makes the app feel calmer and more intentional
+- tightened the `Overview` quick-action toolbar into a more deliberate command cluster with consistent button sizing and alignment
+- rebalanced inventory and settings spacing so core controls appear in a stronger top-to-bottom order before lower-priority detail blocks
+
+### Verification
+- verified `node --check public/app.js`
+- verified the live served HTML includes the new `section-shell`, `overview-command-deck`, `settings-block`, and `files-browser-layout` structural wrappers
+- verified the live served stylesheet includes the new section-shell, command-deck, and inner-card hierarchy rules that power the layout pass
+
+## 2026-05-12
+
 ### Theme Leakage Cleanup
 - replaced the remaining hardcoded cool-blue accent surfaces across the live app shell with theme-variable-driven `color-mix(...)` treatments so active themes now flow through hover states, selected rows, focus rings, connection panels, backup selections, activity markers, and runtime badges
 - updated the floating background glows, inventory toolbar accents, loader cards, server rows, and shared button states so they inherit the active Resin palette instead of leaking older cyan/blue values from earlier styling passes
