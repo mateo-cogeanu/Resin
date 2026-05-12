@@ -22,13 +22,46 @@ const state = {
   inventoryFilter: "all",
   inventorySearch: "",
   playersSearch: "",
-  theme: localStorage.getItem("resinTheme") || "midnight",
+  theme: localStorage.getItem("resinTheme") || "resin",
   fileBrowserPath: "",
   openFilePath: "",
   selectedBackupId: "",
   commandHistory: JSON.parse(localStorage.getItem("resinCommandHistory") || "[]"),
   commandHistoryIndex: -1
 };
+
+const THEMES = [
+  {
+    id: "resin",
+    name: "Resin",
+    note: "Warm amber accents with cooler support tones for Resin's default identity."
+  },
+  {
+    id: "midnight",
+    name: "Midnight",
+    note: "A colder blue-night palette with higher contrast for late sessions."
+  },
+  {
+    id: "harbor",
+    name: "Harbor",
+    note: "A crisp marine palette with brighter cyan highlights."
+  },
+  {
+    id: "ember",
+    name: "Ember",
+    note: "A warmer red-copper palette with stronger heat and danger accents."
+  },
+  {
+    id: "grove",
+    name: "Grove",
+    note: "A mossy green palette with softer natural contrast."
+  },
+  {
+    id: "slate",
+    name: "Slate",
+    note: "A muted graphite palette for a more neutral control-room feel."
+  }
+];
 
 const loaderGrid = document.getElementById("loaderGrid");
 const loaderTemplate = document.getElementById("loaderTemplate");
@@ -53,6 +86,10 @@ const serverList = document.getElementById("serverList");
 const activeServerDisplay = document.getElementById("activeServerDisplay");
 const activeServerMeta = document.getElementById("activeServerMeta");
 const themeSelect = document.getElementById("themeSelect");
+const userThemeSummary = document.getElementById("userThemeSummary");
+const currentThemeName = document.getElementById("currentThemeName");
+const currentThemeNote = document.getElementById("currentThemeNote");
+const themePreviewList = document.getElementById("themePreviewList");
 const topbarRuntimeChip = document.getElementById("topbarRuntimeChip");
 const topbarAddressChip = document.getElementById("topbarAddressChip");
 const topbarHealthChip = document.getElementById("topbarHealthChip");
@@ -65,6 +102,7 @@ const inventorySummary = document.getElementById("inventorySummary");
 const menuButtons = {
   create: document.getElementById("menuCreate"),
   inventory: document.getElementById("menuInventory"),
+  userSettings: document.getElementById("menuUserSettings"),
   overview: document.getElementById("menuOverview"),
   health: document.getElementById("menuHealth"),
   manage: document.getElementById("menuManage"),
@@ -79,6 +117,7 @@ const menuButtons = {
 const panels = {
   create: document.getElementById("panelCreate"),
   inventory: document.getElementById("panelInventory"),
+  userSettings: document.getElementById("panelUserSettings"),
   overview: document.getElementById("panelOverview"),
   health: document.getElementById("panelHealth"),
   manage: document.getElementById("panelManage"),
@@ -288,13 +327,35 @@ function setSettingsStatus(message, tone = "") {
   settingsStatus.className = `status-text ${tone}`.trim();
 }
 
+// Keep theme metadata in one place so the selector, gallery, and status copy stay synchronized.
+function getThemeDefinition(themeId) {
+  return THEMES.find((theme) => theme.id === themeId) || THEMES[0];
+}
+
+// Render global appearance choices in the dedicated preferences screen instead of the crowded top bar.
+function renderThemeSettings() {
+  themeSelect.innerHTML = THEMES.map((theme) => `<option value="${theme.id}">${theme.name}</option>`).join("");
+  const activeTheme = getThemeDefinition(state.theme);
+  themeSelect.value = activeTheme.id;
+  userThemeSummary.textContent = `Theme · ${activeTheme.name}`;
+  currentThemeName.textContent = activeTheme.name;
+  currentThemeNote.textContent = activeTheme.note;
+  themePreviewList.innerHTML = THEMES.map((theme) => `
+    <button type="button" class="theme-preview-card ${theme.id === activeTheme.id ? "active" : ""}" data-theme-id="${theme.id}">
+      <span class="theme-preview-swatch theme-preview-swatch-${theme.id}"></span>
+      <strong>${theme.name}</strong>
+      <span>${theme.note}</span>
+    </button>
+  `).join("");
+}
+
 function applyTheme(theme) {
-  const selectedTheme = ["midnight", "harbor", "ember", "grove"].includes(theme) ? theme : "midnight";
+  const selectedTheme = getThemeDefinition(theme).id;
   // Persist the chosen palette on the root element so every screen can react without custom per-panel logic.
   document.documentElement.dataset.theme = selectedTheme;
-  themeSelect.value = selectedTheme;
   state.theme = selectedTheme;
   localStorage.setItem("resinTheme", selectedTheme);
+  renderThemeSettings();
 }
 
 function setActiveMenu(menu) {
@@ -2191,6 +2252,14 @@ overviewConnection.addEventListener("click", async (event) => {
   }
 });
 
+themePreviewList.addEventListener("click", (event) => {
+  const card = event.target.closest(".theme-preview-card");
+  if (!card) {
+    return;
+  }
+  applyTheme(card.dataset.themeId);
+});
+
 installedModsList.addEventListener("click", (event) => {
   const button = event.target.closest(".mod-remove-button");
   if (button) {
@@ -2207,6 +2276,7 @@ async function init() {
       api("/api/java-runtimes")
     ]);
     applyTheme(state.theme);
+    renderThemeSettings();
     state.loaders = loadersPayload.loaders || [];
     state.javaRuntimes = javaPayload.runtimes || [];
     renderLoaderCards();

@@ -2,6 +2,28 @@
 
 ## 2026-05-12
 
+### Branding and Favicon
+- added the provided `icon.png` to the served web assets and wired it in as Resin's browser favicon
+- replaced the old text-only sidebar badge with the real Resin icon so the interface branding matches the project asset set
+
+### Global Theme System
+- promoted `Resin` to the default global theme instead of using the older `Midnight` palette as the fallback
+- rebuilt the default root palette around warmer resin-like amber and cooler support tones so the app identity feels more product-specific
+- kept the existing themed variants and added a new `Slate` option for a more neutral control-room look
+
+### User Settings Menu
+- removed the theme picker from the crowded top bar and moved appearance controls into a dedicated `User Settings` workspace screen
+- added a persistent global theme selector in that new screen so interface preferences feel like account-level settings instead of random page controls
+- added a theme gallery with preview cards, current-theme summary copy, and one-click theme switching from the gallery itself
+
+### Verification
+- verified `node --check public/app.js`
+- verified `http://localhost:3000/icon.png` serves successfully after copying the icon into the public asset folder
+- verified the live HTML now includes the favicon link, Resin icon image, `User Settings` menu entry, and theme settings panel
+- kept the existing saved-theme localStorage behavior while changing the default fallback to `Resin`
+
+## 2026-05-12
+
 ### Desktop Usability Pass
 - converted the desktop shell into a viewport-contained app so Resin no longer relies on whole-page scrolling for normal navigation
 - moved desktop overflow responsibility from the page body to the active workspace surfaces, which keeps screens from bleeding downward when panels get dense

@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Resin</title>
+    <link rel="icon" type="image/png" href="/icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -15,7 +16,9 @@
     <main class="app-shell">
       <aside class="app-sidebar">
         <div class="sidebar-brand">
-          <div class="sidebar-logo">R</div>
+          <div class="sidebar-logo">
+            <img src="/icon.png" alt="Resin" />
+          </div>
           <div>
             <div class="sidebar-product">Resin</div>
             <div class="sidebar-caption">Minecraft Control Panel</div>
@@ -26,6 +29,7 @@
           <div class="sidebar-group-label">Workspace</div>
           <button id="menuInventory" type="button" class="sidebar-link active">Inventory</button>
           <button id="menuCreate" type="button" class="sidebar-link">Create Server</button>
+          <button id="menuUserSettings" type="button" class="sidebar-link">User Settings</button>
         </div>
 
         <div class="sidebar-group">
@@ -70,15 +74,6 @@
             <span id="activeServerMeta" class="topbar-server-meta">Select one from Inventory to unlock management screens.</span>
           </div>
           <div class="topbar-status-row">
-            <label class="theme-picker" for="themeSelect">
-              <span>Theme</span>
-              <select id="themeSelect" class="theme-select">
-                <option value="midnight">Midnight</option>
-                <option value="harbor">Harbor</option>
-                <option value="ember">Ember</option>
-                <option value="grove">Grove</option>
-              </select>
-            </label>
             <span id="topbarRuntimeChip" class="topbar-chip">No runtime</span>
             <span id="topbarAddressChip" class="topbar-chip">No address</span>
             <span id="topbarHealthChip" class="topbar-chip">Waiting</span>
@@ -265,6 +260,53 @@
               <div id="inventorySummary" class="inventory-summary"></div>
               <div id="serverList" class="server-list"></div>
             </section>
+          </article>
+
+          <article id="panelUserSettings" class="content-panel">
+            <div class="workspace-title">
+              <div>
+                <p class="eyebrow">Preferences</p>
+                <h1>User Settings</h1>
+              </div>
+              <div id="userThemeSummary" class="status-pill">Theme · Resin</div>
+            </div>
+
+            <div class="workspace-grid workspace-grid-settings">
+              <section class="panel-card">
+                <div class="panel-card-head">
+                  <h2>Appearance</h2>
+                  <p>Choose the global panel palette for Resin. Your selection is saved locally in this browser.</p>
+                </div>
+
+                <div class="form-section">
+                  <div class="form-section-title">Theme</div>
+                  <div class="field-grid">
+                    <label class="field field-full">
+                      <span>Color system</span>
+                      <select id="themeSelect" name="themeSelect"></select>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="subsection">
+                  <div class="subsection-head">
+                    <h3>Theme Gallery</h3>
+                    <span id="currentThemeName" class="runtime-badge runtime-badge-blue">Resin</span>
+                  </div>
+                  <div id="themePreviewList" class="theme-preview-grid"></div>
+                </div>
+              </section>
+
+              <aside class="side-rail">
+                <section class="panel-card compact-card">
+                  <div class="panel-card-head panel-card-head-tight">
+                    <h2>Current Theme</h2>
+                    <p id="currentThemeNote">Resin is the default palette and uses warm amber accents with cooler supporting tones.</p>
+                  </div>
+                  <div class="info-box">Appearance settings are global. Server data, runtime behavior, and loader workflows stay unchanged when you switch themes.</div>
+                </section>
+              </aside>
+            </div>
           </article>
 
           <article id="panelHealth" class="content-panel">
