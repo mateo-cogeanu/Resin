@@ -88,6 +88,7 @@
 }
 
 html, body {
+  height: 100%;
   min-height: 100%;
 }
 
@@ -101,7 +102,7 @@ body {
     radial-gradient(circle at bottom right, color-mix(in srgb, var(--green) 14%, transparent), transparent 28rem),
     linear-gradient(180deg, color-mix(in srgb, var(--bg) 78%, black) 0%, var(--bg) 100%);
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: hidden;
 }
 
 .background-glow {
@@ -260,6 +261,8 @@ body {
   grid-template-rows: auto 1fr;
   min-width: 0;
   min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0));
 }
 
@@ -268,7 +271,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 1.25rem;
-  padding: 1.1rem 1.75rem;
+  padding: 0.95rem 1.35rem;
   background: linear-gradient(180deg, rgba(33, 43, 69, 0.94) 0%, rgba(27, 35, 57, 0.92) 100%);
   border-bottom: 1px solid var(--border);
   position: sticky;
@@ -340,8 +343,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.45rem;
-  padding: 0.5rem 0.9rem;
+  min-height: 2.2rem;
+  padding: 0.45rem 0.8rem;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
@@ -352,17 +355,23 @@ body {
 /* Center each workspace on a shared canvas so panels stop feeling randomly scattered. */
 .content-panels {
   display: grid;
-  padding: 1.65rem 1.75rem 2.2rem;
+  min-height: 0;
+  overflow: hidden;
+  padding: 1rem 1.25rem 1.25rem;
 }
 
 .content-panel {
   display: none;
   align-content: start;
+  min-height: 0;
 }
 
 .content-panel.active {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: var(--section-gap);
+  min-height: 0;
+  overflow: hidden;
   width: min(100%, var(--content-max));
   margin-inline: auto;
 }
@@ -410,6 +419,8 @@ body {
   display: grid;
   gap: var(--section-gap);
   align-items: start;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .workspace-grid-create {
@@ -428,6 +439,30 @@ body {
 .workspace-grid-health,
 .workspace-grid-activity {
   grid-template-columns: minmax(0, 1fr);
+}
+
+/* Keep desktop screens inside the viewport by scrolling their working surfaces instead of the whole page. */
+.content-panel.active > .panel-card,
+.content-panel.active > .workspace-grid,
+.content-panel.active > .overview-layout,
+.content-panel.active > .empty-state {
+  min-height: 0;
+}
+
+.workspace-grid > section.panel-card,
+.workspace-grid > aside.side-rail,
+.inventory-panel,
+.overview-layout {
+  min-height: 0;
+}
+
+.workspace-grid > section.panel-card,
+.inventory-panel,
+.overview-layout,
+.workspace-grid-health > section.panel-card,
+.workspace-grid-activity > section.panel-card {
+  overflow: auto;
+  scrollbar-gutter: stable;
 }
 
 .panel-card,
@@ -484,6 +519,9 @@ body {
   position: sticky;
   top: 6.6rem;
   padding-left: 0.2rem;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
 }
 
 .create-form,
@@ -772,7 +810,7 @@ textarea:focus {
 }
 
 textarea {
-  min-height: 18rem;
+  min-height: 12rem;
   resize: vertical;
   font-family: "IBM Plex Mono", "IBM Plex Sans", monospace;
   line-height: 1.45;
@@ -917,6 +955,7 @@ button[type="submit"]:hover,
 .inventory-panel {
   display: grid;
   gap: 0.2rem;
+  align-content: start;
 }
 
 .server-list {
@@ -1017,8 +1056,9 @@ button[type="submit"]:hover,
 
 .main-console-card {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  min-height: 42rem;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto auto;
+  min-height: 0;
+  height: 100%;
 }
 
 .console-insight-bar {
@@ -1048,8 +1088,7 @@ button[type="submit"]:hover,
 
 .console-output {
   margin: 0;
-  min-height: 24rem;
-  max-height: 46rem;
+  min-height: 0;
   overflow: auto;
   padding: 1.05rem;
   background: rgba(7, 11, 21, 0.84);
@@ -1115,7 +1154,7 @@ button[type="submit"]:hover,
 }
 
 #fileEditor {
-  min-height: 24rem;
+  min-height: 18rem;
 }
 
 .stat-grid,
@@ -1381,7 +1420,7 @@ button[type="submit"]:hover,
   }
 
   .content-panels {
-    padding: 1.35rem 1.35rem 1.85rem;
+    padding: 1rem 1rem 1.25rem;
   }
 
   .server-list {
@@ -1405,6 +1444,10 @@ button[type="submit"]:hover,
 }
 
 @media (max-width: 840px) {
+  body {
+    overflow-y: auto;
+  }
+
   .app-shell {
     grid-template-columns: 1fr;
     min-height: auto;
@@ -1428,6 +1471,7 @@ button[type="submit"]:hover,
 
   .content-panels {
     padding: 1rem 1rem 1.4rem;
+    overflow: visible;
   }
 
   .loader-grid,
@@ -1447,6 +1491,20 @@ button[type="submit"]:hover,
     position: relative;
     top: 0;
     padding-left: 0;
+    overflow: visible;
+  }
+
+  .app-stage,
+  .content-panel.active,
+  .workspace-grid,
+  .inventory-panel,
+  .overview-layout,
+  .workspace-grid > section.panel-card,
+  .workspace-grid-health > section.panel-card,
+  .workspace-grid-activity > section.panel-card {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
   }
 
   .console-input-row,

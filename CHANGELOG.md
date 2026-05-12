@@ -2,6 +2,27 @@
 
 ## 2026-05-12
 
+### Desktop Usability Pass
+- converted the desktop shell into a viewport-contained app so Resin no longer relies on whole-page scrolling for normal navigation
+- moved desktop overflow responsibility from the page body to the active workspace surfaces, which keeps screens from bleeding downward when panels get dense
+- reduced top bar height and content padding so more of each management screen fits on one view before any scrolling is needed
+
+### Scroll Containment
+- made active content panels use a header-plus-workspace layout with the working area constrained to the remaining viewport height
+- enabled internal scrolling for the main workspace sections, overview dashboard surface, inventory panel, and side rails instead of letting the full document keep growing
+- kept mobile behavior naturally scrollable by restoring visible overflow and body scrolling under the narrow-screen breakpoint
+
+### Space Efficiency
+- removed the oversized fixed console height in favor of a fill-available console layout so the command area and log share space more efficiently
+- reduced default textarea heights and the file editor height so settings and file management screens waste less vertical space
+- aligned inventory, create, manage, and overview sections around the same desktop density so the app feels more like a tool and less like a long landing page
+
+### Verification
+- verified the live `styles.css` response now includes the viewport containment, internal-scroll, and mobile overflow fallback rules
+- reviewed the final CSS diff for the desktop shell, console height, textarea sizing, and panel overflow behavior before shipping
+
+## 2026-05-12
+
 ### Workspace Structure Pass
 - rebuilt the shared workspace shell so every screen now renders inside the same centered content canvas instead of expanding with inconsistent widths
 - turned the per-screen title row into a real header surface with consistent spacing, border treatment, and visual hierarchy
